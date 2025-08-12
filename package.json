@@ -1,0 +1,33 @@
+{
+  "name": "open-agent-platform",
+  "author": "LangChain",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "turbo:command": "turbo",
+    "format": "turbo format",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "deploy:agent:open_deep_research": "bash -lc 'cd apps/agents/open_deep_research && PORT=${PORT:-2025}; uvx --refresh --from \"langgraph-cli[inmem]\" --with-editable . --python 3.11 langgraph dev --allow-blocking --host 127.0.0.1 --port ${PORT:-2025}'",
+    "deploy:agent:oap_langgraph_tools": "bash -lc 'cd apps/agents/oap-langgraph-tools-agent && PORT=${PORT:-2026}; uvx --refresh --from \"langgraph-cli[inmem]\" --with-editable . --python 3.11 langgraph dev --allow-blocking --host 127.0.0.1 --port ${PORT:-2026}'",
+    "configure:web:rag": "bash -lc 'echo NEXT_PUBLIC_RAG_API_URL=http://localhost:9621 > apps/web/.env.local'",
+    "deploy:rag:env": "[ -f apps/rag/.env ] || cp apps/rag/env.example apps/rag/.env",
+    "deploy:rag:docker:build": "docker build -t oap-rag:local apps/rag",
+    "deploy:rag:docker:up": "docker compose -f apps/rag/docker-compose.yml up -d --build",
+    "deploy:rag:docker:down": "docker compose -f apps/rag/docker-compose.yml down -v",
+    "deploy:rag": "pnpm run deploy:rag:env && pnpm run deploy:rag:docker:down && pnpm run deploy:rag:docker:up",
+    "dev:rag": "pnpm run deploy:rag:env && pnpm run deploy:rag:docker:down && pnpm run deploy:rag:docker:up && echo '\n🚀 LightRAG Development Environment Started!\n📊 LightRAG API: http://localhost:9621\n🌐 Web UI: http://localhost:9621/webui/\n🐘 PostgreSQL: localhost:5432\n\nTo stop: pnpm run deploy:rag:docker:down'"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@9.12.3",
+  "dependencies": {
+    "react-hook-form": "^7.56.3"
+  }
+}
