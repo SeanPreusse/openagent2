@@ -1,0 +1,1 @@
+Final Azure OpenAI test - this should work now with GPT-4o and text-embedding-3-large using 3072 dimensions and IVFFlat indexing.

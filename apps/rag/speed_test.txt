@@ -1,0 +1,1 @@
+Performance test document with optimized Azure OpenAI settings - this should process much faster with increased concurrency.

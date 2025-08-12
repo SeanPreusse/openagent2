@@ -1,0 +1,1 @@
+Optimized speed test document - this should now split into multiple chunks for parallel processing and avoid expensive merging operations.

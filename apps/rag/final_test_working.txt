@@ -1,0 +1,1 @@
+Final Azure OpenAI test with complete file-based storage. This should work with 3072-dimensional embeddings from text-embedding-3-large.
