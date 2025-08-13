@@ -263,12 +263,12 @@ export default function LightRAGInterface() {
                   <Input
                     type="file"
                     multiple
-                    accept=".txt,.md,.pdf,.doc,.docx,.html"
+                    accept=".txt,.md,.pdf,.doc,.docx,.html,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg"
                     onChange={handleFileUpload}
                     disabled={uploading}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Supported: TXT, MD, PDF, DOC, DOCX, HTML
+                    Supported: Images (JPG, PNG, GIF, WebP, BMP, TIFF, SVG), Documents (PDF, TXT, MD, HTML), Office (DOC, DOCX, PPT, PPTX, XLS, XLSX)
                   </p>
                 </div>
                 {uploading && (

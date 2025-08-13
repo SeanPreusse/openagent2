@@ -1229,6 +1229,13 @@ class LightRAG:
                     async with semaphore:
                         nonlocal processed_count
                         current_file_number = 0
+                        
+                        # Initialize task variables to avoid UnboundLocalError
+                        first_stage_tasks = []
+                        entity_relation_task = None
+                        processing_start_time = int(time.time())  # Initialize here to avoid UnboundLocalError
+                        processing_end_time = processing_start_time  # Default value
+                        
                         try:
                             # Get file path from status document
                             file_path = getattr(
@@ -1280,7 +1287,7 @@ class LightRAG:
                             if not chunks:
                                 logger.warning("No document chunks to process")
 
-                            # Record processing start time
+                            # Update processing start time (was initialized above)
                             processing_start_time = int(time.time())
 
                             # Process document in two stages
@@ -1322,7 +1329,6 @@ class LightRAG:
                                 chunks_vdb_task,
                                 text_chunks_task,
                             ]
-                            entity_relation_task = None
 
                             # Execute first stage tasks
                             await asyncio.gather(*first_stage_tasks)

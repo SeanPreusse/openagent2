@@ -97,6 +97,20 @@ class GraphConfigPydantic(BaseModel):
             }
         },
     )
+    model_provider: Optional[str] = Field(
+        default="azure",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "azure",
+                "description": "The model provider to use (OpenAI or Azure OpenAI)",
+                "options": [
+                    {"label": "Azure OpenAI", "value": "azure"},
+                    {"label": "OpenAI", "value": "openai"},
+                ],
+            }
+        },
+    )
     temperature: Optional[float] = Field(
         default=0.7,
         metadata={
@@ -166,8 +180,19 @@ class GraphConfigPydantic(BaseModel):
     )
 
 
-def get_api_key_for_model(model_name: str, config: RunnableConfig):
+def get_api_key_for_model(model_name: str, config: RunnableConfig, model_provider: str = "azure"):
     model_name = model_name.lower()
+    
+    # Check if using Azure OpenAI
+    if model_provider == "azure" and model_name.startswith("openai:"):
+        # Use Azure OpenAI API key
+        api_keys = config.get("configurable", {}).get("apiKeys", {})
+        if api_keys and api_keys.get("AZURE_OPENAI_API_KEY") and len(api_keys["AZURE_OPENAI_API_KEY"]) > 0:
+            return api_keys["AZURE_OPENAI_API_KEY"]
+        # Fallback to environment variable
+        return os.getenv("AZURE_OPENAI_API_KEY")
+    
+    # Standard provider mapping
     model_to_key = {
         "openai:": "OPENAI_API_KEY",
         "anthropic:": "ANTHROPIC_API_KEY", 
@@ -270,12 +295,42 @@ async def graph(config: RunnableConfig):
             print(f"Failed to fetch MCP tools: {e}")
             pass
 
-    model = init_chat_model(
-        cfg.model_name,
-        temperature=cfg.temperature,
-        max_tokens=cfg.max_tokens,
-        api_key=get_api_key_for_model(cfg.model_name, config) or "No token found"
-    )
+    # Configure model based on provider
+    if cfg.model_provider == "azure" and cfg.model_name.startswith("openai:"):
+        # Use Azure OpenAI configuration
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_api_key = get_api_key_for_model(cfg.model_name, config, cfg.model_provider)
+        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+        
+        if azure_endpoint and azure_api_key and azure_deployment:
+            # Use AzureChatOpenAI directly for proper Azure configuration
+            from langchain_openai import AzureChatOpenAI
+            model = AzureChatOpenAI(
+                deployment_name=azure_deployment,
+                azure_endpoint=azure_endpoint,
+                api_key=azure_api_key,
+                api_version=api_version,
+                temperature=cfg.temperature,
+                max_tokens=cfg.max_tokens,
+            )
+        else:
+            print(f"Warning: Missing Azure OpenAI configuration. Need AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT_NAME")
+            # Fallback to regular OpenAI
+            model = init_chat_model(
+                cfg.model_name,
+                temperature=cfg.temperature,
+                max_tokens=cfg.max_tokens,
+                api_key=get_api_key_for_model(cfg.model_name, config, "openai") or "No token found"
+            )
+    else:
+        # Use standard OpenAI or other providers
+        model = init_chat_model(
+            cfg.model_name,
+            temperature=cfg.temperature,
+            max_tokens=cfg.max_tokens,
+            api_key=get_api_key_for_model(cfg.model_name, config, cfg.model_provider) or "No token found"
+        )
 
     return create_react_agent(
         prompt=cfg.system_prompt + UNEDITABLE_SYSTEM_PROMPT,

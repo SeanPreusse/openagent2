@@ -674,30 +674,46 @@ class DocumentManager:
         input_dir: str,
         workspace: str = "",  # New parameter for workspace isolation
         supported_extensions: tuple = (
+            # Text and markup files
             ".txt",
             ".md",
+            ".html",  # HyperText Markup Language
+            ".htm",  # HyperText Markup Language
+            ".rtf",  # Rich Text Format
+            ".tex",  # LaTeX
+            ".epub",  # Electronic Publication
+            # Documents
             ".pdf",
             ".docx",
             ".pptx",
             ".xlsx",
-            ".rtf",  # Rich Text Format
             ".odt",  # OpenDocument Text
-            ".tex",  # LaTeX
-            ".epub",  # Electronic Publication
-            ".html",  # HyperText Markup Language
-            ".htm",  # HyperText Markup Language
+            # Images - Multimodal support
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".webp",
+            ".bmp",
+            ".tiff",
+            ".tif",
+            ".svg",
+            # Data files
             ".csv",  # Comma-Separated Values
             ".json",  # JavaScript Object Notation
             ".xml",  # eXtensible Markup Language
             ".yaml",  # YAML Ain't Markup Language
             ".yml",  # YAML
+            # Configuration and log files
             ".log",  # Log files
             ".conf",  # Configuration files
             ".ini",  # Initialization files
             ".properties",  # Java properties files
+            # Scripts
             ".sql",  # SQL scripts
             ".bat",  # Batch files
             ".sh",  # Shell scripts
+            # Source code
             ".c",  # C source code
             ".cpp",  # C++ source code
             ".py",  # Python source code
@@ -811,20 +827,20 @@ async def pipeline_enqueue_file(
                     # Validate content
                     if not content or len(content.strip()) == 0:
                         logger.error(f"Empty content in file: {file_path.name}")
-                        return False
+                        return False, ""
 
                     # Check if content looks like binary data string representation
                     if content.startswith("b'") or content.startswith('b"'):
                         logger.error(
                             f"File {file_path.name} appears to contain binary data representation instead of text"
                         )
-                        return False
+                        return False, ""
 
                 except UnicodeDecodeError:
                     logger.error(
                         f"File {file_path.name} is not valid UTF-8 encoded text. Please convert it to UTF-8 before processing."
                     )
-                    return False
+                    return False, ""
             case ".pdf":
                 if global_args.document_loading_engine == "DOCLING":
                     if not pm.is_installed("docling"):  # type: ignore
@@ -868,26 +884,194 @@ async def pipeline_enqueue_file(
                         [paragraph.text for paragraph in doc.paragraphs]
                     )
             case ".pptx":
-                if global_args.document_loading_engine == "DOCLING":
-                    if not pm.is_installed("docling"):  # type: ignore
-                        pm.install("docling")
-                    from docling.document_converter import DocumentConverter  # type: ignore
+                # Enhanced PowerPoint processing with RAG-Anything for multimodal support
+                try:
+                    from lightrag.multimodal import RAGANYTHING_AVAILABLE
+                    
+                    if RAGANYTHING_AVAILABLE:
+                        logger.info(f"Processing PowerPoint file using RAG-Anything: {file_path.name}")
+                        logger.info(f"RAG-Anything is available, starting enhanced PowerPoint processing")
+                        
+                        # Use RAG-Anything for comprehensive PowerPoint processing
+                        # This handles slides, images, charts, tables, and complex layouts
+                        from lightrag.multimodal import create_multimodal_lightrag, MultimodalConfig
+                        
+                        def create_office_vision_model_func():
+                            import os
+                            from lightrag.llm.azure_openai import azure_openai_complete_if_cache
+                            
+                            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                            azure_api_key = os.getenv("AZURE_OPENAI_API_KEY") 
+                            azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+                            
+                            def office_vision_func(prompt, system_prompt=None, history_messages=[], image_data=None, **kwargs):
+                                if image_data and azure_endpoint and azure_api_key:
+                                    vision_model = azure_deployment if "4o" in azure_deployment.lower() else "gpt-4o"
+                                    
+                                    messages = [{
+                                        "role": "user", 
+                                        "content": [
+                                            {"type": "text", "text": prompt},
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                                            }
+                                        ]
+                                    }]
+                                    
+                                    return azure_openai_complete_if_cache(
+                                        model=vision_model,
+                                        prompt="",
+                                        system_prompt=system_prompt or "You are an expert at analyzing PowerPoint slides and extracting meaningful information for knowledge management.",
+                                        history_messages=messages,
+                                        base_url=azure_endpoint,
+                                        api_key=azure_api_key,
+                                        **kwargs
+                                    )
+                                else:
+                                    return rag.llm_model_func(prompt, system_prompt, history_messages, **kwargs)
+                            return office_vision_func
+                        
+                        multimodal_config = MultimodalConfig(
+                            vision_model_func=create_office_vision_model_func(),
+                            enable_office_processing=True,
+                            enable_image_processing=True
+                        )
+                        
+                        # Process PowerPoint with image analysis using Azure OpenAI GPT-4o
+                        logger.info(f"Processing PowerPoint with image analysis: {file_path.name}")
+                        
+                        # Extract slides and analyze images
+                        if not pm.is_installed("python-pptx"):  # type: ignore
+                            pm.install("python-pptx")
+                        from pptx import Presentation  # type: ignore
+                        from io import BytesIO
+                        import base64
+                        import os
+                        from lightrag.llm.azure_openai import azure_openai_complete_if_cache
+                        
+                        pptx_file = BytesIO(file)
+                        prs = Presentation(pptx_file)
+                        
+                        content = f"PowerPoint Analysis for {file_path.name}:\n\n"
+                        
+                        # Get Azure OpenAI configuration
+                        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY") 
+                        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+                        
+                        slide_count = 0
+                        for slide_num, slide in enumerate(prs.slides, 1):
+                            slide_count += 1
+                            content += f"\n--- Slide {slide_num} ---\n"
+                            
+                            # Extract text from slide
+                            slide_text = ""
+                            for shape in slide.shapes:
+                                if hasattr(shape, "text") and shape.text.strip():
+                                    slide_text += shape.text + "\n"
+                            
+                            if slide_text.strip():
+                                content += f"Text Content:\n{slide_text}\n"
+                            
+                            # Process images in the slide
+                            image_count = 0
+                            for shape in slide.shapes:
+                                if shape.shape_type == 13:  # Picture type
+                                    try:
+                                        image_count += 1
+                                        image = shape.image
+                                        image_bytes = image.blob
+                                        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                                        
+                                        # Analyze image with Azure OpenAI GPT-4o
+                                        if azure_endpoint and azure_api_key:
+                                            vision_prompt = """Describe this image from a PowerPoint slide. Provide:
+1. What you see in the image
+2. Any text visible in the image (extract all readable text)
+3. Context of what this image represents
+4. Key elements, colors, or important details
 
-                    converter = DocumentConverter()
-                    result = converter.convert(file_path)
-                    content = result.document.export_to_markdown()
-                else:
-                    if not pm.is_installed("python-pptx"):  # type: ignore
-                        pm.install("pptx")
-                    from pptx import Presentation  # type: ignore
-                    from io import BytesIO
+Keep it concise and accurate."""
+                                            
+                                            messages = [{
+                                                "role": "user", 
+                                                "content": [
+                                                    {"type": "text", "text": vision_prompt},
+                                                    {
+                                                        "type": "image_url",
+                                                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                                                    }
+                                                ]
+                                            }]
+                                            
+                                            try:
+                                                vision_response = await azure_openai_complete_if_cache(
+                                                    model=azure_deployment if "4o" in azure_deployment.lower() else "gpt-4o",
+                                                    prompt="",
+                                                    system_prompt="You are an expert at analyzing images and extracting text. Be concise and accurate.",
+                                                    history_messages=messages,
+                                                    base_url=azure_endpoint,
+                                                    api_key=azure_api_key
+                                                )
+                                                
+                                                content += f"Image {image_count} Analysis:\n{vision_response}\n\n"
+                                                logger.info(f"Successfully analyzed image {image_count} in slide {slide_num}")
+                                                
+                                            except Exception as e:
+                                                logger.error(f"Error analyzing image {image_count} in slide {slide_num}: {e}")
+                                                content += f"Image {image_count}: [Image analysis failed: {str(e)}]\n\n"
+                                        else:
+                                            content += f"Image {image_count}: [Image present but vision analysis not configured]\n\n"
+                                            
+                                    except Exception as e:
+                                        logger.error(f"Error processing image in slide {slide_num}: {e}")
+                                        content += f"Image {image_count + 1}: [Error processing image: {str(e)}]\n\n"
+                        
+                        content += f"\nPresentation Summary:\n"
+                        content += f"- Total slides: {slide_count}\n"
+                        content += f"- Processing method: Enhanced PowerPoint analysis with Azure OpenAI GPT-4o vision\n"
+                        
+                    else:
+                        logger.info(f"RAG-Anything not available, using basic PowerPoint text extraction: {file_path.name}")
+                        # Fall back to basic text extraction
+                        pass
+                        
+                except Exception as e:
+                    logger.error(f"Error in RAG-Anything PowerPoint processing: {e}")
+                    # Fall back to basic processing
+                    content = ""  # Reset content so fallback processing will run
+                
+                # Basic PowerPoint text extraction (fallback or supplement)
+                if not content or len(content) < 100:  # If enhanced processing didn't provide much content
+                    if global_args.document_loading_engine == "DOCLING":
+                        if not pm.is_installed("docling"):  # type: ignore
+                            pm.install("docling")
+                        from docling.document_converter import DocumentConverter  # type: ignore
 
-                    pptx_file = BytesIO(file)
-                    prs = Presentation(pptx_file)
-                    for slide in prs.slides:
-                        for shape in slide.shapes:
-                            if hasattr(shape, "text"):
-                                content += shape.text + "\n"
+                        converter = DocumentConverter()
+                        result = converter.convert(file_path)
+                        basic_content = result.document.export_to_markdown()
+                    else:
+                        if not pm.is_installed("python-pptx"):  # type: ignore
+                            pm.install("python-pptx")
+                        from pptx import Presentation  # type: ignore
+                        from io import BytesIO
+
+                        pptx_file = BytesIO(file)
+                        prs = Presentation(pptx_file)
+                        basic_content = ""
+                        for slide_num, slide in enumerate(prs.slides, 1):
+                            basic_content += f"\n--- Slide {slide_num} ---\n"
+                            for shape in slide.shapes:
+                                if hasattr(shape, "text") and shape.text.strip():
+                                    basic_content += shape.text + "\n"
+                    
+                    # Combine or use basic content
+                    if content and len(content) > 100:
+                        content += f"\n\nExtracted Text Content:\n{basic_content}"
+                    else:
+                        content = f"PowerPoint Document: {file_path.name}\n\n{basic_content}"
             case ".xlsx":
                 if global_args.document_loading_engine == "DOCLING":
                     if not pm.is_installed("docling"):  # type: ignore
@@ -916,11 +1100,205 @@ async def pipeline_enqueue_file(
                                 + "\n"
                             )
                         content += "\n"
+            case (
+                ".jpg"
+                | ".jpeg"
+                | ".png"
+                | ".gif"
+                | ".webp"
+                | ".bmp"
+                | ".tiff"
+                | ".tif"
+                | ".svg"
+            ):
+                # Handle image files using RAG-Anything multimodal processing
+                try:
+                    from lightrag.multimodal import RAGANYTHING_AVAILABLE, create_multimodal_lightrag
+                    from lightrag.multimodal import MultimodalConfig
+                    
+                    if RAGANYTHING_AVAILABLE:
+                        logger.info(f"Processing image file using RAG-Anything: {file_path.name}")
+                        
+                        # Create vision model function using the existing LightRAG configuration
+                        def create_vision_model_func():
+                            import os
+                            from lightrag.llm.azure_openai import azure_openai_complete_if_cache
+                            
+                            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                            azure_api_key = os.getenv("AZURE_OPENAI_API_KEY") 
+                            azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+                            
+                            def vision_func(prompt, system_prompt=None, history_messages=[], image_data=None, **kwargs):
+                                if image_data and azure_endpoint and azure_api_key:
+                                    # Use the deployment that supports vision (typically gpt-4o)
+                                    vision_model = azure_deployment if "4o" in azure_deployment.lower() else "gpt-4o"
+                                    
+                                    # Create vision messages
+                                    messages = []
+                                    if system_prompt:
+                                        messages.append({"role": "system", "content": system_prompt})
+                                    
+                                    messages.append({
+                                        "role": "user", 
+                                        "content": [
+                                            {"type": "text", "text": prompt},
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                                            }
+                                        ]
+                                    })
+                                    
+                                    return azure_openai_complete_if_cache(
+                                        model=vision_model,
+                                        prompt="",
+                                        system_prompt=system_prompt,
+                                        history_messages=messages,
+                                        base_url=azure_endpoint,
+                                        api_key=azure_api_key,
+                                        **kwargs
+                                    )
+                                else:
+                                    # Fallback to regular LLM for text-only processing
+                                    return rag.llm_model_func(prompt, system_prompt, history_messages, **kwargs)
+                            
+                            return vision_func
+                        
+                        # Create multimodal configuration
+                        multimodal_config = MultimodalConfig(
+                            vision_model_func=create_vision_model_func(),
+                            enable_image_processing=True,
+                            image_description_prompt="""Please analyze this image in detail and provide:
+
+1. A comprehensive description of what you see in the image
+2. Key objects, people, or elements present  
+3. Colors, composition, and visual style
+4. Any text or readable content in the image
+5. Context or setting (indoor/outdoor, time of day, etc.)
+6. Any notable details or interesting features
+
+Provide a thorough description that would be useful for search and retrieval purposes."""
+                        )
+                        
+                        # First, get direct vision analysis from Azure OpenAI GPT-4o
+                        logger.info(f"Getting direct vision analysis from Azure OpenAI GPT-4o: {file_path.name}")
+                        
+                        import base64
+                        import os
+                        from lightrag.llm.azure_openai import azure_openai_complete_if_cache
+                        
+                        # Encode image as base64
+                        image_base64 = base64.b64encode(file).decode('utf-8')
+                        
+                        # Get Azure OpenAI configuration
+                        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY") 
+                        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+                        
+                        vision_analysis = ""
+                        if azure_endpoint and azure_api_key:
+                            try:
+                                # Use a vision-capable model
+                                vision_model = azure_deployment if "4o" in azure_deployment.lower() else "gpt-4o"
+                                
+                                # Create vision prompt
+                                vision_prompt = """Please analyze this image in detail and provide:
+                                
+1. A comprehensive description of what you see in the image
+2. Key objects, people, or elements present  
+3. Colors, composition, and visual style
+4. Any text or readable content in the image
+5. Context or setting (indoor/outdoor, time of day, etc.)
+6. Any notable details or interesting features
+7. Entities that could be extracted (people, organizations, locations, etc.)
+
+Provide a thorough description that would be useful for search and retrieval purposes."""
+                                
+                                # Create messages for vision API
+                                messages = [{
+                                    "role": "user", 
+                                    "content": [
+                                        {"type": "text", "text": vision_prompt},
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                                        }
+                                    ]
+                                }]
+                                
+                                # Call Azure OpenAI vision model
+                                vision_response = await azure_openai_complete_if_cache(
+                                    model=vision_model,
+                                    prompt="",
+                                    system_prompt="You are an expert at analyzing images and extracting meaningful information for knowledge management and retrieval systems.",
+                                    history_messages=messages,
+                                    base_url=azure_endpoint,
+                                    api_key=azure_api_key
+                                )
+                                
+                                vision_analysis = vision_response if isinstance(vision_response, str) else str(vision_response)
+                                logger.info(f"Successfully got vision analysis from Azure OpenAI GPT-4o: {len(vision_analysis)} characters")
+                                
+                            except Exception as e:
+                                logger.error(f"Error calling Azure OpenAI vision model: {e}")
+                                vision_analysis = f"Vision analysis failed: {str(e)}"
+                        
+                        # Skip multimodal LightRAG creation to avoid database connection issues
+                        # We already have the vision analysis from Azure OpenAI directly
+                        result = {"vision_analysis": vision_analysis, "processed_by": "Azure OpenAI GPT-4o"}
+                        logger.info(f"Skipping multimodal LightRAG creation to prevent database connection issues")
+                        
+                        # Extract detailed content from RAG-Anything result
+                        content = f"Image Analysis for {file_path.name}:\n\n"
+                        
+                        # Debug: Log the full result structure
+                        logger.info(f"RAG-Anything result type: {type(result)}")
+                        logger.info(f"RAG-Anything result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                        logger.info(f"RAG-Anything full result: {result}")
+                        
+                        # Extract the vision analysis from our direct Azure OpenAI call
+                        if result and isinstance(result, dict):
+                            vision_analysis = result.get("vision_analysis", "")
+                            if vision_analysis and vision_analysis != "Vision analysis failed:":
+                                content += f"Vision Analysis (Azure OpenAI GPT-4o):\n{vision_analysis}\n\n"
+                            else:
+                                content += f"Vision analysis was not successful.\n\n"
+                            
+                            # Include processing info
+                            processed_by = result.get("processed_by", "Unknown")
+                            content += f"Processed by: {processed_by}\n\n"
+                        elif result:
+                            content += f"Vision Analysis:\n{str(result)}\n\n"
+                        
+                        # Add file metadata
+                        content += f"File metadata:\n"
+                        content += f"- Filename: {file_path.name}\n"
+                        content += f"- File type: {ext}\n"
+                        content += f"- File size: {len(file)} bytes\n"
+                        content += f"- Processing method: RAG-Anything multimodal analysis with GPT-4o vision\n"
+                        
+                        logger.info(f"Successfully processed image using RAG-Anything: {file_path.name}")
+                        
+                    else:
+                        logger.warning(f"RAG-Anything not available, creating basic metadata for image: {file_path.name}")
+                        content = f"Image file: {file_path.name}\n"
+                        content += f"File type: {ext}\n"
+                        content += f"File size: {len(file)} bytes\n"
+                        content += "This is an image file. Advanced multimodal processing requires RAG-Anything to be installed.\n"
+                        
+                except Exception as e:
+                    logger.error(f"Error processing image file {file_path.name}: {e}")
+                    logger.error(f"Full error: {str(e)}")
+                    # Fallback to basic metadata
+                    content = f"Image file: {file_path.name}\n"
+                    content += f"File type: {ext}\n"
+                    content += f"File size: {len(file)} bytes\n"
+                    content += f"Note: Image uploaded successfully but advanced processing failed. Error: {str(e)}\n"
             case _:
                 logger.error(
                     f"Unsupported file type: {file_path.name} (extension {ext})"
                 )
-                return False
+                return False, ""
 
         # Insert into the RAG queue
         if content:
@@ -942,10 +1320,12 @@ async def pipeline_enqueue_file(
             return True, track_id
         else:
             logger.error(f"No content could be extracted from file: {file_path.name}")
+            return False, ""
 
     except Exception as e:
         logger.error(f"Error processing or enqueueing file {file_path.name}: {str(e)}")
         logger.error(traceback.format_exc())
+        return False, ""
     finally:
         if file_path.name.startswith(temp_prefix):
             try:

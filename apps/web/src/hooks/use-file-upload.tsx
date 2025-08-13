@@ -4,11 +4,26 @@ import type { Base64ContentBlock } from "@langchain/core/messages";
 import { fileToContentBlock } from "@/lib/multimodal-utils";
 
 export const SUPPORTED_FILE_TYPES = [
+  // Images
   "image/jpeg",
   "image/png",
   "image/gif",
   "image/webp",
+  "image/bmp",
+  "image/tiff",
+  "image/svg+xml",
+  // Documents
   "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/html",
+  // Microsoft Office
+  "application/msword", // .doc
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.ms-powerpoint", // .ppt
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+  "application/vnd.ms-excel", // .xls
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
 ];
 
 interface UseFileUploadOptions {
@@ -25,15 +40,31 @@ export function useFileUpload({
   const dragCounter = useRef(0);
 
   const isDuplicate = (file: File, blocks: Base64ContentBlock[]) => {
-    if (file.type === "application/pdf") {
+    // Check for document files (PDF, Office documents, text files)
+    const documentTypes = [
+      "application/pdf",
+      "text/plain", 
+      "text/markdown",
+      "text/html",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ];
+    
+    if (documentTypes.includes(file.type)) {
       return blocks.some(
         (b) =>
           b.type === "file" &&
-          b.mime_type === "application/pdf" &&
+          b.mime_type === file.type &&
           b.metadata?.filename === file.name,
       );
     }
-    if (SUPPORTED_FILE_TYPES.includes(file.type)) {
+    
+    // Check for image files
+    if (file.type.startsWith("image/")) {
       return blocks.some(
         (b) =>
           b.type === "image" &&
@@ -41,6 +72,7 @@ export function useFileUpload({
           b.mime_type === file.type,
       );
     }
+    
     return false;
   };
 
@@ -63,7 +95,7 @@ export function useFileUpload({
 
     if (invalidFiles.length > 0) {
       toast.error(
-        "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+        "You have uploaded invalid file type. Please upload images (JPEG, PNG, GIF, WEBP, BMP, TIFF, SVG), documents (PDF, TXT, MD, HTML), or Office files (DOC, DOCX, PPT, PPTX, XLS, XLSX).",
       );
     }
     if (duplicateFiles.length > 0) {
@@ -124,7 +156,7 @@ export function useFileUpload({
 
       if (invalidFiles.length > 0) {
         toast.error(
-          "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+          "You have uploaded invalid file type. Please upload images (JPEG, PNG, GIF, WEBP, BMP, TIFF, SVG), documents (PDF, TXT, MD, HTML), or Office files (DOC, DOCX, PPT, PPTX, XLS, XLSX).",
         );
       }
       if (duplicateFiles.length > 0) {

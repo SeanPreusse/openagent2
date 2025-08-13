@@ -82,15 +82,48 @@ async def tavily_search(
     max_char_to_include = configurable.max_content_length
     
     # Initialize summarization model with retry logic
-    model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
-        model=configurable.summarization_model,
-        max_tokens=configurable.summarization_model_max_tokens,
-        api_key=model_api_key,
-        tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(
-        stop_after_attempt=configurable.max_structured_output_retries
-    )
+    model_api_key = get_api_key_for_model(configurable.summarization_model, config, configurable.model_provider)
+    
+    # Configure summarization model based on provider
+    if configurable.model_provider == "azure" and configurable.summarization_model.startswith("openai:"):
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+        
+        if azure_endpoint and model_api_key and azure_deployment:
+            # Use AzureChatOpenAI directly for proper Azure configuration
+            from langchain_openai import AzureChatOpenAI
+            summarization_model = AzureChatOpenAI(
+                deployment_name=azure_deployment,
+                azure_endpoint=azure_endpoint,
+                api_key=model_api_key,
+                api_version=api_version,
+                max_tokens=configurable.summarization_model_max_tokens,
+                tags=["langsmith:nostream"]
+            ).with_structured_output(Summary).with_retry(
+                stop_after_attempt=configurable.max_structured_output_retries
+            )
+        else:
+            print(f"Warning: Missing Azure OpenAI configuration for summarization. Need AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT_NAME")
+            # Fallback to standard OpenAI
+            summarization_model = init_chat_model(
+                model=configurable.summarization_model,
+                max_tokens=configurable.summarization_model_max_tokens,
+                api_key=get_api_key_for_model(configurable.summarization_model, config, "openai"),
+                tags=["langsmith:nostream"]
+            ).with_structured_output(Summary).with_retry(
+                stop_after_attempt=configurable.max_structured_output_retries
+            )
+    else:
+        # Standard OpenAI or other providers
+        summarization_model = init_chat_model(
+            model=configurable.summarization_model,
+            max_tokens=configurable.summarization_model_max_tokens,
+            api_key=model_api_key,
+            tags=["langsmith:nostream"]
+        ).with_structured_output(Summary).with_retry(
+            stop_after_attempt=configurable.max_structured_output_retries
+        )
     
     # Step 4: Create summarization tasks (skip empty content)
     async def noop():
@@ -889,10 +922,22 @@ def get_config_value(value):
     else:
         return value.value
 
-def get_api_key_for_model(model_name: str, config: RunnableConfig):
+def get_api_key_for_model(model_name: str, config: RunnableConfig, model_provider: str = "azure"):
     """Get API key for a specific model from environment or config."""
     should_get_from_config = os.getenv("GET_API_KEYS_FROM_CONFIG", "false")
     model_name = model_name.lower()
+    
+    # Check if using Azure OpenAI
+    if model_provider == "azure" and model_name.startswith("openai:"):
+        if should_get_from_config.lower() == "true":
+            api_keys = config.get("configurable", {}).get("apiKeys", {})
+            if api_keys:
+                return api_keys.get("AZURE_OPENAI_API_KEY")
+            return None
+        else:
+            return os.getenv("AZURE_OPENAI_API_KEY")
+    
+    # Standard provider handling
     if should_get_from_config.lower() == "true":
         api_keys = config.get("configurable", {}).get("apiKeys", {})
         if not api_keys:

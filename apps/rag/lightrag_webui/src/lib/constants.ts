@@ -28,6 +28,7 @@ export const defaultQueryLabel = '*'
 
 // reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/MIME_types/Common_types
 export const supportedFileTypes = {
+  // Text and markup files
   'text/plain': [
     '.txt',
     '.md',
@@ -63,10 +64,22 @@ export const supportedFileTypes = {
     '.scss',
     '.less'
   ],
+  // Documents
   'application/pdf': ['.pdf'],
   'application/msword': ['.doc'],
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx']
+  'application/vnd.ms-powerpoint': ['.ppt'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  // Images - Multimodal support
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+  'image/bmp': ['.bmp'],
+  'image/tiff': ['.tiff', '.tif'],
+  'image/svg+xml': ['.svg']
 }
 
 export const SiteInfo = {

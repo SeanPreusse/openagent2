@@ -210,6 +210,21 @@ class Configuration(BaseModel):
             }
         }
     )
+    # Model Provider Configuration
+    model_provider: str = Field(
+        default="azure",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "azure",
+                "description": "The model provider to use (OpenAI or Azure OpenAI)",
+                "options": [
+                    {"label": "Azure OpenAI", "value": "azure"},
+                    {"label": "OpenAI", "value": "openai"},
+                ]
+            }
+        }
+    )
     # MCP server configuration
     mcp_config: Optional[MCPConfig] = Field(
         default=None,

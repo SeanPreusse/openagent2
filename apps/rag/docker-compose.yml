@@ -30,6 +30,7 @@ services:
     volumes:
       - ./data/rag_storage:/app/data/rag_storage
       - ./data/inputs:/app/data/inputs
+      - ./data/multimodal_output:/app/data/multimodal_output
       - ./data/tiktoken:/app/data/tiktoken
       - ./config.ini:/app/config.ini
       - ./.env:/app/.env
@@ -37,19 +38,82 @@ services:
       - .env
     environment:
       - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+      - MULTIMODAL_OUTPUT_DIR=/app/data/multimodal_output
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=lightrag_user
       - POSTGRES_PASSWORD=lightrag_password
       - POSTGRES_DATABASE=lightrag
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      neo4j:
+        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    profiles:
+      - api-only  # Only start with --profile api-only
 
+  neo4j:
+    container_name: lightrag_neo4j
+    image: neo4j:5.25.1-community
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_dbms_security_auth__enabled=true
+      - NEO4J_server_memory_pagecache_size=512M
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=1G
+      - NEO4J_PLUGINS=[]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
 
+  # LightRAG with integrated WebUI - alternative to lightrag service above
+  lightrag-webui:
+    container_name: lightrag_webui
+    build:
+      context: .
+      dockerfile: Dockerfile.webui
+      tags:
+        - lightrag:webui
+    ports:
+      - "${WEBUI_PORT:-9622}:9621"  # Use different port to avoid conflicts
+    volumes:
+      - ./data/rag_storage:/app/data/rag_storage
+      - ./data/inputs:/app/data/inputs
+      - ./data/multimodal_output:/app/data/multimodal_output
+      - ./data/tiktoken:/app/data/tiktoken
+      - ./config.ini:/app/config.ini
+      - ./.env:/app/.env
+    env_file:
+      - .env
+    environment:
+      - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+      - MULTIMODAL_OUTPUT_DIR=/app/data/multimodal_output
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=lightrag_user
+      - POSTGRES_PASSWORD=lightrag_password
+      - POSTGRES_DATABASE=lightrag
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    restart: unless-stopped
+    profiles:
+      - webui  # Use a profile so it doesn't start by default
 
 volumes:
   postgres_data:
+  neo4j_data:

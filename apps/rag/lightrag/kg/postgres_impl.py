@@ -171,6 +171,9 @@ class PostgreSQLDB:
                     connection_params["ssl"] = False
                 logger.info(f"PostgreSQL, SSL mode set to: {self.ssl_mode}")
 
+            # Add connection timeout to prevent hangs
+            connection_params["command_timeout"] = 30  # 30 seconds
+            connection_params["server_settings"] = {"application_name": "lightrag"}
             self.pool = await asyncpg.create_pool(**connection_params)  # type: ignore
 
             # Ensure VECTOR extension is available
@@ -1538,6 +1541,12 @@ class PGKVStorage(BaseKVStorage):
 
     async def get_by_id(self, id: str) -> dict[str, Any] | None:
         """Get data by id."""
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
+            
         sql = SQL_TEMPLATES["get_by_id_" + self.namespace]
         params = {"workspace": self.db.workspace, "id": id}
         response = await self.db.query(sql, params)
@@ -1726,6 +1735,12 @@ class PGKVStorage(BaseKVStorage):
         logger.debug(f"Inserting {len(data)} to {self.namespace}")
         if not data:
             return
+
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
 
         if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
             # Get current UTC time and convert to naive datetime for database storage
@@ -1963,6 +1978,12 @@ class PGVectorStorage(BaseVectorStorage):
         logger.debug(f"Inserting {len(data)} to {self.namespace}")
         if not data:
             return
+
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
 
         # Get current UTC time and convert to naive datetime for database storage
         current_time = datetime.datetime.now(timezone.utc).replace(tzinfo=None)
@@ -2449,6 +2470,12 @@ class PGDocStatusStorage(DocStatusStorage):
         Returns:
             Tuple of (list of (doc_id, DocProcessingStatus) tuples, total_count)
         """
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
+
         # Validate parameters
         if page < 1:
             page = 1
@@ -2544,6 +2571,12 @@ class PGDocStatusStorage(DocStatusStorage):
         Returns:
             Dictionary mapping status names to counts, including 'all' field
         """
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
+
         sql = """
             SELECT status, COUNT(*) as count
             FROM LIGHTRAG_DOC_STATUS
@@ -2606,6 +2639,12 @@ class PGDocStatusStorage(DocStatusStorage):
         logger.debug(f"Inserting {len(data)} to {self.namespace}")
         if not data:
             return
+
+        # Defensive init: ensure db and workspace are ready
+        if self.db is None:
+            await self.initialize()
+        if not getattr(self.db, "workspace", None):
+            self.db.workspace = getattr(self, "workspace", None) or "default"
 
         def parse_datetime(dt_str):
             """Parse datetime and ensure it's stored as UTC time in database"""

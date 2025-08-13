@@ -1240,101 +1240,184 @@ LightRAG now seamlessly integrates with [RAG-Anything](https://github.com/HKUDS/
 - **Hybrid Intelligent Retrieval**: Advanced search capabilities spanning textual and multimodal content with contextual understanding
 
 **Quick Start:**
-1. Install RAG-Anything:
+
+### Enhanced Integration (Recommended)
+
+LightRAG now provides built-in multimodal support with enhanced integration:
+
+1. **Quick Docker Setup** (Recommended):
    ```bash
-   pip install raganything
+   # One-command setup with Docker Compose V2
+   ./scripts/start_docker.sh
    ```
-2. Process multimodal documents:
-    <details>
-    <summary> <b> RAGAnything Usage Example </b></summary>
 
-    ```python
-        import asyncio
-        from raganything import RAGAnything
-        from lightrag import LightRAG
-        from lightrag.llm.openai import openai_complete_if_cache, openai_embed
-        from lightrag.utils import EmbeddingFunc
-        import os
+2. **Manual Installation**:
+   ```bash
+   pip install lightrag-hku  # Includes raganything dependency
+   ```
 
-        async def load_existing_lightrag():
-            # First, create or load an existing LightRAG instance
-            lightrag_working_dir = "./existing_lightrag_storage"
+3. **Use the enhanced LightRAG interface**:
+   ```python
+   import asyncio
+   from lightrag import (
+       LightRAG, 
+       create_multimodal_lightrag, 
+       create_openai_vision_func,
+       MultimodalConfig
+   )
+   from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+   from lightrag.utils import EmbeddingFunc
 
-            # Check if previous LightRAG instance exists
-            if os.path.exists(lightrag_working_dir) and os.listdir(lightrag_working_dir):
-                print("✅ Found existing LightRAG instance, loading...")
-            else:
-                print("❌ No existing LightRAG instance found, will create new one")
+   async def main():
+       # Create standard LightRAG instance
+       lightrag_instance = LightRAG(
+           working_dir="./multimodal_storage",
+           llm_model_func=lambda prompt, **kwargs: openai_complete_if_cache(
+               "gpt-4o-mini", prompt, api_key="your-api-key", **kwargs
+           ),
+           embedding_func=EmbeddingFunc(
+               embedding_dim=3072,
+               func=lambda texts: openai_embed(
+                   texts, model="text-embedding-3-large", api_key="your-api-key"
+               ),
+           )
+       )
+       
+       await lightrag_instance.initialize_storages()
+       
+       # Create vision model function
+       vision_func = create_openai_vision_func(api_key="your-api-key")
+       
+       # Enhance with multimodal capabilities
+       multimodal_rag = await create_multimodal_lightrag(
+           lightrag_instance=lightrag_instance,
+           vision_model_func=vision_func
+       )
+       
+       # Process multimodal documents
+       await multimodal_rag.process_document_complete("financial_report.xlsx")
+       await multimodal_rag.process_document_complete("presentation.pptx") 
+       await multimodal_rag.process_document_complete("chart.png")
+       
+       # Query with multimodal support
+       result = await multimodal_rag.query_with_multimodal(
+           "What financial trends are shown in the processed documents?",
+           mode="hybrid"
+       )
+       print(result)
 
-            # Create/Load LightRAG instance with your configurations
-            lightrag_instance = LightRAG(
-                working_dir=lightrag_working_dir,
-                llm_model_func=lambda prompt, system_prompt=None, history_messages=[], **kwargs: openai_complete_if_cache(
-                    "gpt-4o-mini",
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key="your-api-key",
-                    **kwargs,
-                ),
-                embedding_func=EmbeddingFunc(
-                    embedding_dim=3072,
-                    func=lambda texts: openai_embed(
-                        texts,
-                        model="text-embedding-3-large",
-                        api_key=api_key,
-                        base_url=base_url,
-                    ),
-                )
-            )
-            # Initialize storage (this will load existing data if available)
-            await lightrag_instance.initialize_storages()
-            # Now initialize RAGAnything with the existing LightRAG instance
-            rag = RAGAnything(
-                lightrag=lightrag_instance,  # Pass the existing LightRAG instance
-                # Only need vision model for multimodal processing
-                vision_model_func=lambda prompt, system_prompt=None, history_messages=[], image_data=None, **kwargs: openai_complete_if_cache(
-                    "gpt-4o",
-                    "",
-                    system_prompt=None,
-                    history_messages=[],
-                    messages=[
-                        {"role": "system", "content": system_prompt} if system_prompt else None,
-                        {"role": "user", "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
-                        ]} if image_data else {"role": "user", "content": prompt}
-                    ],
-                    api_key="your-api-key",
-                    **kwargs,
-                ) if image_data else openai_complete_if_cache(
-                    "gpt-4o-mini",
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key="your-api-key",
-                    **kwargs,
-                )
-                # Note: working_dir, llm_model_func, embedding_func, etc. are inherited from lightrag_instance
-            )
-            # Query the existing knowledge base
-            result = await rag.query_with_multimodal(
-                "What data has been processed in this LightRAG instance?",
-                mode="hybrid"
-            )
-            print("Query result:", result)
-            # Add new multimodal documents to the existing LightRAG instance
-            await rag.process_document_complete(
-                file_path="path/to/new/multimodal_document.pdf",
-                output_dir="./output"
-            )
+   asyncio.run(main())
+   ```
 
-        if __name__ == "__main__":
-            asyncio.run(load_existing_lightrag())
-    ```
-    </details>
+### Direct RAG-Anything Integration
 
-For detailed documentation and advanced usage, please refer to the [RAG-Anything repository](https://github.com/HKUDS/RAG-Anything).
+For advanced users who prefer direct RAG-Anything integration:
+
+<details>
+<summary> <b> Direct RAGAnything Usage Example </b></summary>
+
+```python
+import asyncio
+from raganything import RAGAnything
+from lightrag import LightRAG
+from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+from lightrag.utils import EmbeddingFunc
+import os
+
+async def load_existing_lightrag():
+    # First, create or load an existing LightRAG instance
+    lightrag_working_dir = "./existing_lightrag_storage"
+
+    # Check if previous LightRAG instance exists
+    if os.path.exists(lightrag_working_dir) and os.listdir(lightrag_working_dir):
+        print("✅ Found existing LightRAG instance, loading...")
+    else:
+        print("❌ No existing LightRAG instance found, will create new one")
+
+    # Create/Load LightRAG instance with your configurations
+    lightrag_instance = LightRAG(
+        working_dir=lightrag_working_dir,
+        llm_model_func=lambda prompt, system_prompt=None, history_messages=[], **kwargs: openai_complete_if_cache(
+            "gpt-4o-mini",
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key="your-api-key",
+            **kwargs,
+        ),
+        embedding_func=EmbeddingFunc(
+            embedding_dim=3072,
+            func=lambda texts: openai_embed(
+                texts,
+                model="text-embedding-3-large",
+                api_key="your-api-key",
+            ),
+        )
+    )
+    # Initialize storage (this will load existing data if available)
+    await lightrag_instance.initialize_storages()
+    # Now initialize RAGAnything with the existing LightRAG instance
+    rag = RAGAnything(
+        lightrag=lightrag_instance,  # Pass the existing LightRAG instance
+        # Only need vision model for multimodal processing
+        vision_model_func=lambda prompt, system_prompt=None, history_messages=[], image_data=None, **kwargs: openai_complete_if_cache(
+            "gpt-4o",
+            "",
+            system_prompt=None,
+            history_messages=[],
+            messages=[
+                {"role": "system", "content": system_prompt} if system_prompt else None,
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                ]} if image_data else {"role": "user", "content": prompt}
+            ],
+            api_key="your-api-key",
+            **kwargs,
+        ) if image_data else openai_complete_if_cache(
+            "gpt-4o-mini",
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key="your-api-key",
+            **kwargs,
+        )
+        # Note: working_dir, llm_model_func, embedding_func, etc. are inherited from lightrag_instance
+    )
+    # Query the existing knowledge base
+    result = await rag.query_with_multimodal(
+        "What data has been processed in this LightRAG instance?",
+        mode="hybrid"
+    )
+    print("Query result:", result)
+    # Add new multimodal documents to the existing LightRAG instance
+    await rag.process_document_complete(
+        file_path="path/to/new/multimodal_document.pdf",
+        output_dir="./output"
+    )
+
+if __name__ == "__main__":
+    asyncio.run(load_existing_lightrag())
+```
+</details>
+
+### 📖 Documentation & Quick Start
+
+- **🚀 Quick Start**: See [QUICK_START.md](./QUICK_START.md) for one-command Docker deployment
+- **🐳 Docker Guide**: See [docs/DockerDeployment.md](./docs/DockerDeployment.md) for comprehensive Docker setup
+- **📋 Enhanced Integration**: See [MULTIMODAL_INTEGRATION.md](./MULTIMODAL_INTEGRATION.md) for detailed multimodal documentation
+- **RAG-Anything Repository**: [github.com/HKUDS/RAG-Anything](https://github.com/HKUDS/RAG-Anything) for the underlying multimodal processing system
+- **Example Scripts**: Check `examples/multimodal_example.py` for working code examples
+
+### 📋 Supported Document Types
+
+| Document Type | Extensions | Capabilities |
+|---------------|------------|-------------|
+| **Excel Spreadsheets** | `.xlsx`, `.xls` | Table extraction, formula processing, chart analysis |
+| **PowerPoint Presentations** | `.pptx`, `.ppt` | Slide content, embedded images, charts, speaker notes |
+| **Word Documents** | `.docx`, `.doc` | Text content, embedded images, tables |
+| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff`, `.svg` | OCR, chart analysis, diagram understanding |
+| **PDFs** | `.pdf` | Enhanced extraction with image and table processing |
 
 ## Token Usage Tracking
 

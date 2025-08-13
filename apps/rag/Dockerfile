@@ -3,11 +3,28 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install Rust and required build dependencies
+# Install Rust and required build dependencies including LibreOffice
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
     pkg-config \
+    libffi-dev \
+    libssl-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libwebp-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libmagic1 \
+    libmagic-dev \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
     && rm -rf /var/lib/apt/lists/* \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . $HOME/.cargo/env
@@ -19,36 +36,56 @@ COPY lightrag/ ./lightrag/
 
 # Install dependencies
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN pip install --user --no-cache-dir .
-RUN pip install --user --no-cache-dir .[api]
+RUN pip install --upgrade pip && \
+    pip install --user --no-cache-dir --force-reinstall .
+RUN pip install --user --no-cache-dir --force-reinstall .[api]
 
 # Install depndencies for default storage
-RUN pip install --user --no-cache-dir nano-vectordb networkx
+RUN pip install --user --no-cache-dir --force-reinstall nano-vectordb networkx
 # Install depndencies for default LLM
-RUN pip install --user --no-cache-dir openai ollama tiktoken
+RUN pip install --user --no-cache-dir --force-reinstall openai ollama tiktoken
 # Install depndencies for default document loader
-RUN pip install --user --no-cache-dir pypdf2 python-docx python-pptx openpyxl
+RUN pip install --user --no-cache-dir --force-reinstall pypdf2 python-docx python-pptx openpyxl
+# Install multimodal dependencies (RAG-Anything with all optional features and supporting libraries)
+RUN pip install --user --no-cache-dir --force-reinstall 'raganything[all]' Pillow python-magic
 
 # Final stage
 FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install runtime dependencies for multimodal processing including LibreOffice
+RUN apt-get update && apt-get install -y \
+    libmagic1 \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libtiff6 \
+    libwebp7 \
+    libfreetype6 \
+    liblcms2-2 \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only necessary files from builder
 COPY --from=builder /root/.local /root/.local
 COPY ./lightrag ./lightrag
 COPY setup.py .
 
-RUN pip install ".[api]"
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --force-reinstall ".[api]"
 # Make sure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
 
 # Create necessary directories
-RUN mkdir -p /app/data/rag_storage /app/data/inputs
+RUN mkdir -p /app/data/rag_storage /app/data/inputs /app/data/multimodal_output
 
 # Docker data directories
 ENV WORKING_DIR=/app/data/rag_storage
 ENV INPUT_DIR=/app/data/inputs
+ENV MULTIMODAL_OUTPUT_DIR=/app/data/multimodal_output
 
 # Expose the default port
 EXPOSE 9621

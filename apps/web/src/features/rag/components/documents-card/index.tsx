@@ -108,6 +108,7 @@ export function DocumentsCard({
       "image/tiff",
       "image/gif",
       "image/webp",
+      "image/svg+xml",
     ];
 
     const allowedExtensions = [
@@ -129,13 +130,23 @@ export function DocumentsCard({
       ".tif",
       ".gif",
       ".webp",
+      ".svg",
     ];
 
     const filteredFiles = files.filter((file) => {
       const ext = file.name.includes(".")
         ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
         : "";
-      return allowedMimeTypes.includes(file.type) || allowedExtensions.includes(ext);
+      // Allow file if either MIME type matches OR extension matches (for better compatibility)
+      const mimeMatch = allowedMimeTypes.includes(file.type);
+      const extMatch = allowedExtensions.includes(ext);
+      
+      // Debug log for troubleshooting
+      if (!mimeMatch && !extMatch) {
+        console.log(`Rejected file: ${file.name}, MIME: ${file.type}, Extension: ${ext}`);
+      }
+      
+      return mimeMatch || extMatch;
     });
 
     setStagedFiles((prevFiles) => [...prevFiles, ...filteredFiles]);
@@ -165,6 +176,28 @@ export function DocumentsCard({
     setIsDragging(false);
 
     const files = event.dataTransfer.files;
+    const acceptedMimeTypes = [
+      // Documents
+      "application/pdf",
+      "text/plain",
+      "text/markdown",
+      "text/html",
+      "application/msword", // .doc
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/vnd.ms-powerpoint", // .ppt
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+      "application/vnd.ms-excel", // .xls
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+      // Images
+      "image/jpeg",
+      "image/png",
+      "image/bmp",
+      "image/tiff",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
+    ];
+    
     const acceptedExtensions = [
       ".pdf",
       ".txt",
@@ -184,6 +217,7 @@ export function DocumentsCard({
       ".tif",
       ".gif",
       ".webp",
+      ".svg",
     ];
     const supportedFiles: File[] = [];
     const unsupportedFiles: File[] = [];
@@ -192,9 +226,14 @@ export function DocumentsCard({
       const fileExtension = file.name
         .substring(file.name.lastIndexOf("."))
         .toLowerCase();
-      if (acceptedExtensions.includes(fileExtension)) {
+      // Check both MIME type and extension for better compatibility
+      const mimeMatch = acceptedMimeTypes.includes(file.type);
+      const extMatch = acceptedExtensions.includes(fileExtension);
+      
+      if (mimeMatch || extMatch) {
         supportedFiles.push(file);
       } else {
+        console.log(`Drag&Drop rejected file: ${file.name}, MIME: ${file.type}, Extension: ${fileExtension}`);
         unsupportedFiles.push(file);
       }
     }
@@ -202,7 +241,7 @@ export function DocumentsCard({
     if (unsupportedFiles.length > 0) {
       const unsupportedNames = unsupportedFiles.map((f) => f.name).join(", ");
       toast.error(
-        `Unsupported file types: ${unsupportedNames}. Please use PDF, TXT, or HTML.`,
+        `Unsupported file types: ${unsupportedNames}. Please use images (JPEG, PNG, GIF, WEBP, BMP, TIFF, SVG), documents (PDF, TXT, MD, HTML), or Office files (DOC, DOCX, PPT, PPTX, XLS, XLSX).`,
         { richColors: true },
       );
     }
@@ -379,7 +418,7 @@ export function DocumentsCard({
                   id="file-upload"
                   multiple
                   onChange={handleFileSelect}
-                  accept=".pdf,.txt,.md,.html,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp"
+                  accept=".pdf,.txt,.md,.html,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.svg"
                 />
                 <Label htmlFor="file-upload">
                   <Button

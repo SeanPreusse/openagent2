@@ -312,6 +312,13 @@ class Neo4JStorage(BaseGraphStorage):
             ValueError: If node_id is invalid
             Exception: If there is an error executing the query
         """
+        # Defensive init: ensure driver is initialized
+        if self._driver is None:
+            await self.initialize()
+        if self._driver is None:
+            logger.error("Neo4j driver initialization failed")
+            return None
+            
         workspace_label = self._get_workspace_label()
         async with self._driver.session(
             database=self._DATABASE, default_access_mode="READ"
@@ -834,6 +841,13 @@ class Neo4JStorage(BaseGraphStorage):
             node_id: The unique identifier for the node (used as label)
             node_data: Dictionary of node properties
         """
+        # Defensive init: ensure driver is initialized
+        if self._driver is None:
+            await self.initialize()
+        if self._driver is None:
+            logger.error("Neo4j driver initialization failed")
+            return
+            
         workspace_label = self._get_workspace_label()
         properties = node_data
         entity_type = properties["entity_type"]

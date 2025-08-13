@@ -1,0 +1,103 @@
+# Multi-stage build for LightRAG with integrated WebUI
+# Build Python environment
+FROM python:3.11-slim AS python-builder
+
+WORKDIR /app
+
+# Install Rust and required build dependencies including LibreOffice
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libwebp-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libmagic1 \
+    libmagic-dev \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && . $HOME/.cargo/env
+
+# Copy pyproject.toml and source code for dependency installation
+COPY pyproject.toml .
+COPY setup.py .
+COPY lightrag/ ./lightrag/
+
+# Install dependencies
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN pip install --upgrade pip && \
+    pip install --user --no-cache-dir --force-reinstall .
+RUN pip install --user --no-cache-dir --force-reinstall .[api]
+
+# Install dependencies for default storage
+RUN pip install --user --no-cache-dir --force-reinstall nano-vectordb networkx
+# Install dependencies for default LLM
+RUN pip install --user --no-cache-dir --force-reinstall openai ollama tiktoken
+# Install dependencies for default document loader
+RUN pip install --user --no-cache-dir --force-reinstall pypdf2 python-docx python-pptx openpyxl
+# Install multimodal dependencies (RAG-Anything with all optional features and supporting libraries)
+RUN pip install --user --no-cache-dir --force-reinstall 'raganything[all]' Pillow python-magic
+# Install additional dependencies for enhanced processing
+RUN pip install --user --no-cache-dir --force-reinstall asyncpg neo4j
+
+# Stage 3: Final runtime image
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies for multimodal processing including LibreOffice
+RUN apt-get update && apt-get install -y \
+    libmagic1 \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libtiff6 \
+    libwebp7 \
+    libfreetype6 \
+    liblcms2-2 \
+    libreoffice \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python dependencies from builder
+COPY --from=python-builder /root/.local /root/.local
+
+# Copy LightRAG source code
+COPY ./lightrag ./lightrag
+COPY setup.py .
+
+# Copy pre-built WebUI (build it locally first with: cd lightrag_webui && npm run build-no-bun)
+COPY ./lightrag/api/webui ./lightrag/api/webui
+
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --force-reinstall ".[api]"
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+# Create necessary directories
+RUN mkdir -p /app/data/rag_storage /app/data/inputs /app/data/multimodal_output
+
+# Docker data directories
+ENV WORKING_DIR=/app/data/rag_storage
+ENV INPUT_DIR=/app/data/inputs
+ENV MULTIMODAL_OUTPUT_DIR=/app/data/multimodal_output
+
+# Expose the default port
+EXPOSE 9621
+
+# Set entrypoint with WebUI serving enabled
+ENTRYPOINT ["python", "-m", "lightrag.api.lightrag_server"]
