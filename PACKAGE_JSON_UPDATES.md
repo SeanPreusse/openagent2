@@ -174,3 +174,5 @@ All scripts have been tested:
 - ✅ **Error handling**: Graceful failures with helpful messages
 
 The package.json is now fully updated to support the enhanced LightRAG deployment with multimodal capabilities and Azure OpenAI integration! 🚀
+
+

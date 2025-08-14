@@ -457,3 +457,4 @@ def create_openai_vision_func(api_key: str, model: str = "gpt-4o", base_url: Opt
             )
     
     return vision_model_func
+

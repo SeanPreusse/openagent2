@@ -1,34 +1,27 @@
 import { NextRequest } from "next/server";
 import { Client } from "@langchain/langgraph-sdk";
 import { getDeployments } from "@/lib/environment/deployments";
+import { createServerClient } from "@supabase/ssr";
 
 /**
  * Creates a client for a specific deployment, using either LangSmith auth or user auth
  */
-function createServerClient(deploymentId: string, accessToken?: string) {
+function createLgClient(deploymentId: string, accessToken?: string) {
   const deployment = getDeployments().find((d) => d.id === deploymentId);
   if (!deployment) {
     throw new Error(`Deployment ${deploymentId} not found`);
-  }
-
-  if (!accessToken) {
-    // Use LangSmith auth
-    const client = new Client({
-      apiUrl: deployment.deploymentUrl,
-      apiKey: process.env.LANGSMITH_API_KEY,
-      defaultHeaders: {
-        "x-auth-scheme": "langsmith",
-      },
-    });
-    return client;
   }
 
   // Use user auth
   const client = new Client({
     apiUrl: deployment.deploymentUrl,
     defaultHeaders: {
-      Authorization: `Bearer ${accessToken}`,
-      "x-supabase-access-token": accessToken,
+      ...(accessToken
+        ? {
+            Authorization: `Bearer ${accessToken}`,
+            "x-supabase-access-token": accessToken,
+          }
+        : {}),
     },
   });
   return client;
@@ -46,71 +39,43 @@ async function getOrCreateDefaultAssistants(
     throw new Error(`Deployment ${deploymentId} not found`);
   }
 
-  // Do NOT pass in an access token here. We want to use LangSmith auth.
-  const lsAuthClient = createServerClient(deploymentId);
-  const userAuthClient = createServerClient(deploymentId, accessToken);
+  // Use only user-scoped auth (no LangSmith admin). If no token, return empty and let UI handle sign-in.
+  const userClient = createLgClient(deploymentId, accessToken);
 
-  const [systemDefaultAssistants, userDefaultAssistants] = await Promise.all([
-    lsAuthClient.assistants.search({
-      limit: 100,
-      metadata: {
-        created_by: "system",
-      },
-    }),
-    userAuthClient.assistants.search({
-      limit: 100,
-      metadata: {
-        _x_oap_is_default: true,
-      },
-    }),
-  ]);
+  // Fetch any existing user default assistants
+  const userDefaultAssistants = await userClient.assistants.search({
+    limit: 100,
+    metadata: { _x_oap_is_default: true },
+  });
 
-  if (!systemDefaultAssistants.length) {
-    throw new Error("Failed to find default system assistants.");
-  }
+  // Ensure at least one default assistant for the deployment default graph
+  const graphsToEnsure: string[] = deployment.defaultGraphId
+    ? [deployment.defaultGraphId]
+    : [];
 
-  if (systemDefaultAssistants.length === userDefaultAssistants.length) {
-    // User has already created all default assistants.
-    return userDefaultAssistants;
-  }
-
-  // Find all assistants which are created by the system, but do not have a corresponding user defined default assistant.
-  const missingDefaultAssistants = systemDefaultAssistants.filter(
-    (assistant) =>
-      !userDefaultAssistants.some((a) => a.graph_id === assistant.graph_id),
+  const missingGraphs = graphsToEnsure.filter(
+    (graphId) => !userDefaultAssistants.some((a) => a.graph_id === graphId),
   );
 
-  // Create a new client, passing in the access token to use user scoped auth.
-  const newUserDefaultAssistantsPromise = missingDefaultAssistants.map(
-    async (assistant) => {
-      const isDefaultDeploymentAndGraph =
-        deployment.isDefault &&
-        deployment.defaultGraphId === assistant.graph_id;
-      return await userAuthClient.assistants.create({
-        graphId: assistant.graph_id,
-        name: `${isDefaultDeploymentAndGraph ? "Default" : "Primary"} Assistant`,
+  const created: any[] = [];
+  for (const graphId of missingGraphs) {
+    try {
+      const createdAssistant = await userClient.assistants.create({
+        graphId,
+        name: "Default Assistant",
         metadata: {
           _x_oap_is_default: true,
-          description: `${isDefaultDeploymentAndGraph ? "Default" : "Primary"}  Assistant`,
-          ...(isDefaultDeploymentAndGraph && { _x_oap_is_primary: true }),
+          _x_oap_is_primary: true,
+          description: "Default Assistant",
         },
       });
-    },
-  );
-
-  const newUserDefaultAssistants = [
-    ...userDefaultAssistants,
-    ...(await Promise.all(newUserDefaultAssistantsPromise)),
-  ];
-
-  if (systemDefaultAssistants.length === newUserDefaultAssistants.length) {
-    // We've successfully created all the default assistants, for every graph.
-    return newUserDefaultAssistants;
+      created.push(createdAssistant);
+    } catch (e) {
+      // Ignore create errors; return what we have
+    }
   }
 
-  throw new Error(
-    `Failed to create default assistants for deployment ${deploymentId}. Expected ${systemDefaultAssistants.length} default assistants, but found/created ${newUserDefaultAssistants.length}.`,
-  );
+  return [...userDefaultAssistants, ...created];
 }
 
 /**
@@ -120,15 +85,47 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const deploymentId = url.searchParams.get("deploymentId");
-    const accessToken = req.headers
-      .get("Authorization")
-      ?.replace("Bearer ", "");
+    let accessToken = req.headers.get("Authorization")?.replace("Bearer ", "");
+
+    // Fall back to Supabase session cookie to obtain user access token
+    if (!accessToken) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createServerClient(supabaseUrl, supabaseKey, {
+            cookies: {
+              get(name: string) {
+                return req.cookies.get(name)?.value;
+              },
+              set() {},
+              remove() {},
+            },
+          });
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          accessToken = session?.access_token || undefined;
+        } catch {}
+      }
+    }
 
     if (!deploymentId) {
       return new Response(
         JSON.stringify({ error: "Missing deploymentId parameter" }),
         {
           status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // If no access token is available, return 401 so the client can prompt sign-in
+    if (!accessToken) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: missing user access token" }),
+        {
+          status: 401,
           headers: { "Content-Type": "application/json" },
         },
       );

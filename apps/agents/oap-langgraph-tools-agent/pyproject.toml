@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["tools_agent"]
+packages = ["tools_agent", "tools_agent.utils", "tools_agent.security"]
 
 [dependency-groups]
 dev = [

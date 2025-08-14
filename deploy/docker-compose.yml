@@ -1,0 +1,161 @@
+services:
+  # Database Services
+  postgres:
+    container_name: openagent_postgres
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./openagent/apps/rag/initdb:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lightrag_user -d lightrag"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - openagent-network
+
+  neo4j:
+    container_name: openagent_neo4j
+    image: neo4j:5.25.1-community
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH}
+      NEO4J_dbms_security_auth__enabled: ${NEO4J_dbms_security_auth__enabled}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_server_memory_pagecache_size}
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_server_memory_heap_initial__size}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_server_memory_heap_max__size}
+      NEO4J_PLUGINS: ${NEO4J_PLUGINS}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    networks:
+      - openagent-network
+
+  # RAG Service (Working)
+  rag:
+    container_name: openagent_rag
+    build:
+      context: ./openagent/apps/rag
+      dockerfile: Dockerfile
+    ports:
+      - "9621:9621"
+    volumes:
+      - ./data/rag_storage:/app/data/rag_storage
+      - ./data/inputs:/app/data/inputs
+      - ./data/multimodal_output:/app/data/multimodal_output
+      - ./data/tiktoken:/app/data/tiktoken
+      - ./openagent/apps/rag/config.ini:/app/config.ini
+      - ./openagent/apps/rag/.env:/app/.env
+    env_file:
+      - ./openagent/apps/rag/.env
+    environment:
+      - TIKTOKEN_CACHE_DIR=${TIKTOKEN_CACHE_DIR}
+      - MULTIMODAL_OUTPUT_DIR=${MULTIMODAL_OUTPUT_DIR}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    networks:
+      - openagent-network
+
+  # Documentation (Working)
+  docs:
+    container_name: openagent_docs
+    build:
+      context: ./openagent/apps/docs
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    networks:
+      - openagent-network
+
+  # Web (Next.js)
+  web:
+    container_name: openagent_web
+    build:
+      context: ./openagent/apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_DEPLOYMENTS: "${NEXT_PUBLIC_DEPLOYMENTS}"
+        NEXT_PUBLIC_BASE_API_URL: ${NEXT_PUBLIC_BASE_API_URL}
+        NEXT_PUBLIC_RAG_API_URL: ${NEXT_PUBLIC_RAG_API_URL}
+        NEXT_PUBLIC_USE_LANGSMITH_AUTH: ${NEXT_PUBLIC_USE_LANGSMITH_AUTH}
+        LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+        NEXT_PUBLIC_MCP_AUTH_REQUIRED: ${NEXT_PUBLIC_MCP_AUTH_REQUIRED}
+        NEXT_PUBLIC_MCP_SERVER_URL: ${NEXT_PUBLIC_MCP_SERVER_URL}
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_BASE_API_URL: ${NEXT_PUBLIC_BASE_API_URL}
+      NEXT_PUBLIC_RAG_API_URL: ${NEXT_PUBLIC_RAG_API_URL}
+      NEXT_PUBLIC_USE_LANGSMITH_AUTH: ${NEXT_PUBLIC_USE_LANGSMITH_AUTH}
+      # LANGSMITH_API_KEY enables server-side LangSmith auth for proxy routes
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      # MCP integration (optional)
+      NEXT_PUBLIC_MCP_AUTH_REQUIRED: ${NEXT_PUBLIC_MCP_AUTH_REQUIRED}
+      NEXT_PUBLIC_MCP_SERVER_URL: ${NEXT_PUBLIC_MCP_SERVER_URL}
+      # Supabase (required for build-time prerendering of debug-auth)
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      # Minimal deployments list to satisfy build-time validation
+      NEXT_PUBLIC_DEPLOYMENTS: "${NEXT_PUBLIC_DEPLOYMENTS}"
+    depends_on:
+      - rag
+    networks:
+      - openagent-network
+
+  # Agents
+  oap_tools_agent:
+    container_name: openagent_tools_agent
+    build:
+      context: ./openagent/apps/agents/oap-langgraph-tools-agent
+      dockerfile: Dockerfile
+    ports:
+      - "2026:2026"
+    volumes:
+      - ./openagent/apps/agents/oap-langgraph-tools-agent/.env:/app/.env:ro
+    networks:
+      - openagent-network
+
+  open_deep_research:
+    container_name: openagent_deep_research
+    build:
+      context: ./openagent/apps/agents/open_deep_research
+      dockerfile: Dockerfile
+    ports:
+      - "2025:2025"
+    volumes:
+      - ./openagent/apps/agents/open_deep_research/.env:/app/.env:ro
+    networks:
+      - openagent-network
+
+volumes:
+  postgres_data:
+  neo4j_data:
+
+networks:
+  openagent-network:
+    driver: bridge
+

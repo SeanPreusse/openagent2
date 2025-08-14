@@ -104,8 +104,13 @@ export async function proxyRequest(req: NextRequest): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/api\/oap_mcp/, "");
 
-  // Construct the target URL
+  // Construct the target URL and remap localhost to internal Docker host if running server-side
   const targetUrlObj = new URL(MCP_SERVER_URL);
+  const isServer = true; // this code runs on the server (edge runtime)
+  if (isServer && (targetUrlObj.hostname === "localhost" || targetUrlObj.hostname === "127.0.0.1")) {
+    if (targetUrlObj.port === "2026") targetUrlObj.hostname = "oap_tools_agent";
+    if (targetUrlObj.port === "2025") targetUrlObj.hostname = "open_deep_research";
+  }
   targetUrlObj.pathname = `${targetUrlObj.pathname}${targetUrlObj.pathname.endsWith("/") ? "" : "/"}mcp${path}${url.search}`;
   const targetUrl = targetUrlObj.toString();
 
@@ -150,6 +155,10 @@ export async function proxyRequest(req: NextRequest): Promise<Response> {
         supabaseToken,
         new URL(MCP_SERVER_URL),
       );
+      // Fallback: if exchange not supported, pass the Supabase JWT directly
+      if (!accessToken) {
+        accessToken = supabaseToken;
+      }
     }
 
     // If we still don't have a token, return an error
@@ -167,6 +176,8 @@ export async function proxyRequest(req: NextRequest): Promise<Response> {
   }
 
   headers.set("Accept", "application/json, text/event-stream");
+  // Ensure required MCP headers for CORS preflight allow-list
+  headers.set("mcp-protocol-version", "2024-11-05");
 
   // Determine body based on method
   let body: BodyInit | null | undefined = undefined;

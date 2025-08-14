@@ -6,9 +6,23 @@ import { Deployment } from "@/types/deployment";
  */
 export function getDeployments(): Deployment[] {
   let defaultExists = false;
-  const deployments: Deployment[] = JSON.parse(
-    process.env.NEXT_PUBLIC_DEPLOYMENTS || "[]",
-  );
+  const raw = process.env.NEXT_PUBLIC_DEPLOYMENTS || "[]";
+  const parsed: Deployment[] = JSON.parse(raw);
+  // If running server-side in Docker, map localhost URLs to internal service names
+  const inDocker = process.env.NEXT_RUNTIME === "edge" || process.env.NEXT_RUNTIME === "nodejs";
+  const deployments: Deployment[] = parsed.map((d) => {
+    try {
+      const u = new URL(d.deploymentUrl);
+      if (inDocker && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) {
+        // Heuristic remap by port to internal service name
+        const mappedHost =
+          u.port === "2026" ? "oap_tools_agent" : u.port === "2025" ? "open_deep_research" : u.hostname;
+        u.hostname = mappedHost;
+        d = { ...d, deploymentUrl: u.toString() };
+      }
+    } catch {}
+    return d;
+  });
   for (const deployment of deployments) {
     if (deployment.isDefault && !defaultExists) {
       if (!deployment.defaultGraphId) {

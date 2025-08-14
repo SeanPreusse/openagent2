@@ -9,25 +9,8 @@ export async function fileToContentBlock(
     "image/png",
     "image/gif",
     "image/webp",
-    "image/bmp",
-    "image/tiff",
-    "image/svg+xml",
   ];
-  
-  const supportedDocumentTypes = [
-    "application/pdf",
-    "text/plain",
-    "text/markdown", 
-    "text/html",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ];
-  
-  const supportedFileTypes = [...supportedImageTypes, ...supportedDocumentTypes];
+  const supportedFileTypes = [...supportedImageTypes, "application/pdf"];
 
   if (!supportedFileTypes.includes(file.type)) {
     toast.error(
@@ -48,11 +31,11 @@ export async function fileToContentBlock(
     };
   }
 
-  // Document files (PDF, Office docs, text files)
+  // PDF
   return {
     type: "file",
     source_type: "base64",
-    mime_type: file.type,
+    mime_type: "application/pdf",
     data,
     metadata: { filename: file.name },
   };
@@ -85,11 +68,7 @@ export function isBase64ContentBlock(
     "mime_type" in block &&
     typeof (block as { mime_type?: unknown }).mime_type === "string" &&
     ((block as { mime_type: string }).mime_type.startsWith("image/") ||
-      (block as { mime_type: string }).mime_type === "application/pdf" ||
-      (block as { mime_type: string }).mime_type.startsWith("text/") ||
-      (block as { mime_type: string }).mime_type.startsWith("application/msword") ||
-      (block as { mime_type: string }).mime_type.startsWith("application/vnd.openxmlformats-officedocument") ||
-      (block as { mime_type: string }).mime_type.startsWith("application/vnd.ms-"))
+      (block as { mime_type: string }).mime_type === "application/pdf")
   ) {
     return true;
   }

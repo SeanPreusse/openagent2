@@ -26,14 +26,17 @@
     "dev:rag": "cd apps/rag && ./scripts/start_docker.sh && echo '\n🚀 LightRAG with Multimodal Support Started!\n📊 LightRAG API: http://localhost:9621\n🌐 Web UI: http://localhost:9621\n🐘 PostgreSQL: localhost:5432\n📁 Upload Excel, PowerPoint, Images!\n\nManagement:\n  View logs: pnpm run deploy:rag:docker:logs\n  Restart: pnpm run deploy:rag:docker:restart\n  Stop: pnpm run deploy:rag:docker:down'",
     "dev:rag:python": "bash -lc 'cd apps/rag && PORT=${PORT:-9621}; ([ -d venv ] || python -m venv venv) && source venv/bin/activate && pip install -e . && python -m lightrag.api.lightrag_server --port $PORT --host 0.0.0.0'",
     "stop:rag:webui": "bash -lc 'PORT=${PORT:-9621}; PID=$(lsof -ti tcp:$PORT || true); if [ -n \"$PID\" ]; then echo \"🔪 Stopping LightRAG on port $PORT (PID $PID)\"; kill -9 $PID || true; else echo \"No process on port $PORT\"; fi'",
-    "start:rag:webui": "bash -lc 'cd apps/rag && PORT=${PORT:-9621} ./scripts/start_local.sh'"
+    "start:rag:webui": "bash -lc 'cd apps/rag && PORT=${PORT:-9621} ./scripts/start_local.sh'",
+    "deploy:production": "cd .. && ./deploy.sh --production",
+    "deploy:dev": "cd .. && ./deploy.sh",
+    "deploy:rebuild": "cd .. && ./deploy.sh --rebuild",
+    "deploy:stop": "cd .. && ./deploy.sh --stop",
+    "deploy:status": "cd .. && ./deploy.sh --status",
+    "deploy:logs": "cd .. && ./deploy.sh --logs"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@9.12.3",
-  "dependencies": {
-    "react-hook-form": "^7.56.3"
-  }
+  "packageManager": "pnpm@9.12.3"
 }

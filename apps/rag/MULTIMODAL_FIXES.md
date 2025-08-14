@@ -217,3 +217,5 @@ If you encounter any issues:
 4. Test with simpler file types first (e.g., plain text) then progress to complex multimodal files
 
 The system is now fully configured for comprehensive multimodal document processing with Azure OpenAI integration!
+
+

@@ -1,0 +1,46 @@
+networks:
+  openagent-network:
+    driver: bridge
+
+services:
+  oap_tools_agent:
+    container_name: openagent_tools_agent
+    build:
+      context: ./apps/agents/oap-langgraph-tools-agent
+      dockerfile: Dockerfile
+    ports:
+      - "2026:2026"
+    environment:
+      - PORT=2026
+    networks:
+      - openagent-network
+    restart: unless-stopped
+    volumes:
+      - ./apps/agents/oap-langgraph-tools-agent/.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2026/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  open_deep_research:
+    container_name: openagent_deep_research
+    build:
+      context: ./apps/agents/open_deep_research
+      dockerfile: Dockerfile
+    ports:
+      - "2025:2025"
+    environment:
+      - PORT=2025
+    networks:
+      - openagent-network
+    restart: unless-stopped
+    volumes:
+      - ./apps/agents/open_deep_research/.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2025/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

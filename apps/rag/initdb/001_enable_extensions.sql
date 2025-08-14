@@ -4,3 +4,5 @@ CREATE EXTENSION IF NOT EXISTS age;
 LOAD 'age';
 SELECT * FROM ag_catalog.create_graph('lightrag_graph');
 
+
+

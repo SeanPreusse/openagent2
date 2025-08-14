@@ -249,3 +249,5 @@ You now have a complete LightRAG system with:
 - ✅ Graph-based knowledge extraction
 
 Upload your images, PowerPoint presentations, Excel files, and PDFs to see the advanced multimodal RAG system in action! 🚀
+
+

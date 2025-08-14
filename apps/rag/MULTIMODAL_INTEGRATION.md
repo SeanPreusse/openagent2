@@ -447,3 +447,4 @@ See `examples/multimodal_example.py` for complete working examples including:
 - `get_multimodal_stats()`: Get processing statistics
 
 For detailed API documentation, see the docstrings in `lightrag/multimodal.py`.
+

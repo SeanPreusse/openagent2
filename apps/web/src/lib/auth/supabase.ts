@@ -31,6 +31,13 @@ export class SupabaseAuthProvider implements AuthProvider {
 
     // Extract metadata from user_metadata
     const metadata = supabaseUser.user_metadata || {};
+    // Try to derive an avatar URL from provider identity data (e.g., LinkedIn/Google)
+    const identities: any[] = Array.isArray(supabaseUser.identities)
+      ? supabaseUser.identities
+      : [];
+    const identityAvatar = identities
+      .map((i: any) => i?.identity_data?.avatar_url || i?.identity_data?.picture)
+      .find((u: string | undefined) => typeof u === "string" && u.length > 0);
 
     // Determine name - prefer explicit first_name/last_name from our app
     // but fall back to name from Google/OAuth or email username
@@ -54,7 +61,12 @@ export class SupabaseAuthProvider implements AuthProvider {
       firstName,
       lastName,
       companyName: metadata.company_name || null,
-      avatarUrl: metadata.avatar_url || null,
+      avatarUrl:
+        metadata.avatar_url ||
+        metadata.picture ||
+        metadata.profile_image_url ||
+        identityAvatar ||
+        null,
       metadata,
     };
   }
