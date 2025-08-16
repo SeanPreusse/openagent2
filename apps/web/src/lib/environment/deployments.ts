@@ -9,7 +9,7 @@ export function getDeployments(): Deployment[] {
   const raw = process.env.NEXT_PUBLIC_DEPLOYMENTS || "[]";
   const parsed: Deployment[] = JSON.parse(raw);
   // If running server-side in Docker, map localhost URLs to internal service names
-  const inDocker = process.env.NEXT_RUNTIME === "edge" || process.env.NEXT_RUNTIME === "nodejs";
+  const inDocker = process.env.DOCKER_ENV === "true" || process.env.NODE_ENV === "production";
   const deployments: Deployment[] = parsed.map((d) => {
     try {
       const u = new URL(d.deploymentUrl);

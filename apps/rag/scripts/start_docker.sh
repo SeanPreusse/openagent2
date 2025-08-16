@@ -155,7 +155,7 @@ start_containers() {
     
     # Start the services
     print_status "Starting services..."
-    docker compose up -d
+    docker compose --profile api-only up -d
     
     print_success "Containers started successfully"
 }
