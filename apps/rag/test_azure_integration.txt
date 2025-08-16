@@ -1,0 +1,1 @@
+This is a test document for Azure OpenAI integration. The system uses GPT-4o and text-embedding-3-large models from Azure OpenAI to provide intelligent knowledge graph-based retrieval.

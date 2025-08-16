@@ -1,0 +1,1 @@
+Azure OpenAI test with correct dimensions. This document tests GPT-4o and text-embedding-3-small integration working properly with 1536 dimensions.
