@@ -11,7 +11,7 @@ services:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./openagent/apps/rag/initdb:/docker-entrypoint-initdb.d
+      - ../apps/rag/initdb:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lightrag_user -d lightrag"]
@@ -44,7 +44,7 @@ services:
   rag:
     container_name: openagent_rag
     build:
-      context: ./openagent/apps/rag
+      context: ../apps/rag
       dockerfile: Dockerfile
     ports:
       - "9621:9621"
@@ -53,10 +53,10 @@ services:
       - ./data/inputs:/app/data/inputs
       - ./data/multimodal_output:/app/data/multimodal_output
       - ./data/tiktoken:/app/data/tiktoken
-      - ./openagent/apps/rag/config.ini:/app/config.ini
-      - ./openagent/apps/rag/.env:/app/.env
+      - ../apps/rag/config.ini:/app/config.ini
+      - ../apps/rag/.env:/app/.env
     env_file:
-      - ./openagent/apps/rag/.env
+      - ../apps/rag/.env
     environment:
       - TIKTOKEN_CACHE_DIR=${TIKTOKEN_CACHE_DIR}
       - MULTIMODAL_OUTPUT_DIR=${MULTIMODAL_OUTPUT_DIR}
@@ -81,7 +81,7 @@ services:
   docs:
     container_name: openagent_docs
     build:
-      context: ./openagent/apps/docs
+      context: ../apps/docs
       dockerfile: Dockerfile
     ports:
       - "3001:3000"
@@ -93,7 +93,7 @@ services:
   web:
     container_name: openagent_web
     build:
-      context: ./openagent/apps/web
+      context: ../apps/web
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
@@ -130,24 +130,24 @@ services:
   oap_tools_agent:
     container_name: openagent_tools_agent
     build:
-      context: ./openagent/apps/agents/oap-langgraph-tools-agent
+      context: ../apps/agents/oap-langgraph-tools-agent
       dockerfile: Dockerfile
     ports:
       - "2026:2026"
     volumes:
-      - ./openagent/apps/agents/oap-langgraph-tools-agent/.env:/app/.env:ro
+      - ../apps/agents/oap-langgraph-tools-agent/.env:/app/.env:ro
     networks:
       - openagent-network
 
   open_deep_research:
     container_name: openagent_deep_research
     build:
-      context: ./openagent/apps/agents/open_deep_research
+      context: ../apps/agents/open_deep_research
       dockerfile: Dockerfile
     ports:
       - "2025:2025"
     volumes:
-      - ./openagent/apps/agents/open_deep_research/.env:/app/.env:ro
+      - ../apps/agents/open_deep_research/.env:/app/.env:ro
     networks:
       - openagent-network
 
