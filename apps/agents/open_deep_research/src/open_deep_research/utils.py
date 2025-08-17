@@ -556,6 +556,88 @@ async def load_mcp_tools(
     
     return configured_tools
 
+##########################
+# RAG Tool Utils  
+##########################
+
+async def create_rag_tool(
+    rag_url: str, 
+    workspace: str = "",
+    query_mode: str = "hybrid",
+    top_k: int = 60,
+    chunk_top_k: int = 6,
+    max_entity_tokens: int = 4000,
+    max_relation_tokens: int = 4000,
+    min_rerank_score: float = 0.0,
+    api_key: str = None
+):
+    """Create a RAG tool for LightRAG integration in Deep Research.
+
+    Args:
+        rag_url: The base URL for the LightRAG API server
+        workspace: The workspace for data isolation
+        query_mode: Query mode (naive, local, global, hybrid)
+        top_k: Number of entities/relations to retrieve
+        chunk_top_k: Maximum number of chunks in context
+        max_entity_tokens: Maximum tokens for entity context
+        max_relation_tokens: Maximum tokens for relation context
+        min_rerank_score: Minimum rerank score threshold
+        api_key: The API key for LightRAG authentication
+
+    Returns:
+        A structured tool that can be used to query the LightRAG knowledge graph
+    """
+    if rag_url.endswith("/"):
+        rag_url = rag_url[:-1]
+
+    @tool
+    async def lightrag_search(
+        query: Annotated[str, "The search query to find relevant information from the knowledge graph"],
+    ) -> str:
+        """Search the knowledge graph using LightRAG for relevant information."""
+
+        search_endpoint = f"{rag_url}/query"
+        payload = {
+            "query": query,
+            "mode": query_mode,
+            "workspace": workspace,
+            "top_k": top_k,
+            "chunk_top_k": chunk_top_k,
+            "max_entity_tokens": max_entity_tokens,
+            "max_relation_tokens": max_relation_tokens,
+            "min_rerank_score": min_rerank_score
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {"Content-Type": "application/json"}
+                
+                # Add authentication if API key is provided
+                if api_key:
+                    headers["X-API-Key"] = api_key
+                
+                async with session.post(
+                    search_endpoint,
+                    json=payload,
+                    headers=headers,
+                ) as search_response:
+                    if search_response.status == 401:
+                        if api_key:
+                            return "Authentication failed. The provided API key may be incorrect or expired. Please check your LightRAG API key configuration."
+                        else:
+                            return "Authentication required. Please set the API key in your RAG configuration. The LightRAG server is configured to require authentication."
+                    
+                    search_response.raise_for_status()
+                    result = await search_response.json()
+                    
+                    # LightRAG returns a response field with the generated answer
+                    return result.get("response", "No response received from LightRAG")
+        except aiohttp.ClientError as e:
+            return f"Connection error to LightRAG server: {str(e)}. Please check that the LightRAG server is running at {rag_url}"
+        except Exception as e:
+            return f"Error querying knowledge graph: {str(e)}"
+
+    return lightrag_search
 
 ##########################
 # Tool Utils
@@ -600,10 +682,10 @@ async def get_search_tool(search_api: SearchAPI):
     return []
     
 async def get_all_tools(config: RunnableConfig):
-    """Assemble complete toolkit including research, search, and MCP tools.
+    """Assemble complete toolkit including research, search, RAG, and MCP tools.
     
     Args:
-        config: Runtime configuration specifying search API and MCP settings
+        config: Runtime configuration specifying search API, RAG, and MCP settings
         
     Returns:
         List of all configured and available tools for research operations
@@ -616,6 +698,25 @@ async def get_all_tools(config: RunnableConfig):
     search_api = SearchAPI(get_config_value(configurable.search_api))
     search_tools = await get_search_tool(search_api)
     tools.extend(search_tools)
+    
+    # Add RAG tool if configured and enabled
+    if configurable.rag and configurable.rag.enabled and configurable.rag.rag_url:
+        # Get API key from environment variables
+        lightrag_api_key = os.getenv("LIGHTRAG_API_KEY")
+        
+        # Create RAG tool with LightRAG configuration
+        rag_tool = await create_rag_tool(
+            configurable.rag.rag_url, 
+            workspace=configurable.rag.workspace or "",
+            query_mode=configurable.rag.query_mode or "hybrid",
+            top_k=configurable.rag.top_k or 60,
+            chunk_top_k=configurable.rag.chunk_top_k or 6,
+            max_entity_tokens=configurable.rag.max_entity_tokens or 4000,
+            max_relation_tokens=configurable.rag.max_relation_tokens or 4000,
+            min_rerank_score=configurable.rag.min_rerank_score or 0.0,
+            api_key=lightrag_api_key
+        )
+        tools.append(rag_tool)
     
     # Track existing tool names to prevent conflicts
     existing_tool_names = {

@@ -35,6 +35,28 @@ class MCPConfig(BaseModel):
     )
     """Whether the MCP server requires authentication"""
 
+class RagConfig(BaseModel):
+    """Configuration for RAG (Retrieval-Augmented Generation) functionality."""
+    
+    enabled: Optional[bool] = True
+    """Whether RAG is enabled"""
+    rag_url: Optional[str] = None
+    """The URL of the rag server"""
+    workspace: Optional[str] = None
+    """The workspace for data isolation"""
+    query_mode: Optional[str] = "hybrid"
+    """Query mode: naive, local, global, or hybrid"""
+    top_k: Optional[int] = 60
+    """Number of entities/relations to retrieve"""
+    chunk_top_k: Optional[int] = 6
+    """Maximum number of chunks in context"""
+    max_entity_tokens: Optional[int] = 4000
+    """Maximum tokens for entity context"""
+    max_relation_tokens: Optional[int] = 4000
+    """Maximum tokens for relation context"""
+    min_rerank_score: Optional[float] = 0.0
+    """Minimum rerank score threshold for filtering chunks"""
+
 class Configuration(BaseModel):
     """Main configuration class for the Deep Research agent."""
     
@@ -245,6 +267,26 @@ class Configuration(BaseModel):
                 "description": "Any additional instructions to pass along to the Agent regarding the MCP tools that are available to it."
             }
         }
+    )
+    # RAG configuration
+    rag: Optional[RagConfig] = Field(
+        default=None,
+        optional=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "rag",
+                "default": {
+                    "enabled": True,
+                    "workspace": "",
+                    "query_mode": "hybrid",
+                    "top_k": 60,
+                    "chunk_top_k": 6,
+                    "max_entity_tokens": 4000,
+                    "max_relation_tokens": 4000,
+                    "min_rerank_score": 0.0,
+                },
+            }
+        },
     )
 
 
