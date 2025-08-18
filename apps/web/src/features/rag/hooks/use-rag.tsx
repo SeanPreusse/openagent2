@@ -15,12 +15,14 @@ export function getDefaultCollection(collections: Collection[]): Collection {
 }
 
 function getApiUrlOrThrow(): URL {
-  if (!process.env.NEXT_PUBLIC_RAG_API_URL) {
-    throw new Error(
-      "Failed to upload documents: API URL not configured. Please set NEXT_PUBLIC_RAG_API_URL",
-    );
+  // Use the proxy API route instead of direct connection to RAG service
+  // Handle both client-side and server-side rendering
+  if (typeof window !== 'undefined') {
+    return new URL("/api/rag", window.location.origin);
+  } else {
+    // Server-side fallback - this shouldn't be called during SSR but just in case
+    return new URL("/api/rag", "http://localhost:3000");
   }
-  return new URL(process.env.NEXT_PUBLIC_RAG_API_URL);
 }
 
 export function getCollectionName(name: string | undefined) {
@@ -214,7 +216,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/admin/initialize-database";
+      url.pathname = url.pathname + "/admin/initialize-database";
       const response = await fetch(url.toString(), {
         method: "POST",
         headers: {
@@ -249,7 +251,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}/documents`;
+      url.pathname = url.pathname + `/collections/${collectionId}/documents`;
       if (args?.limit) {
         url.searchParams.set("limit", args.limit.toString());
       }
@@ -286,7 +288,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${selectedCollection.uuid}/documents/${id}`;
+      url.pathname = url.pathname + `/collections/${selectedCollection.uuid}/documents/${id}`;
 
       const response = await fetch(url.toString(), {
         method: "DELETE",
@@ -386,7 +388,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/collections";
+      url.pathname = url.pathname + "/collections";
 
       const response = await fetch(url.toString(), {
         headers: {
@@ -417,7 +419,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = "/collections";
+      url.pathname = url.pathname + "/collections";
 
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -502,7 +504,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}`;
+      url.pathname = url.pathname + `/collections/${collectionId}`;
 
       const updateData = {
         name: trimmedNewName,
@@ -563,7 +565,7 @@ export function useRag(): UseRagReturn {
       }
 
       const url = getApiUrlOrThrow();
-      url.pathname = `/collections/${collectionId}`;
+      url.pathname = url.pathname + `/collections/${collectionId}`;
 
       const response = await fetch(url.toString(), {
         method: "DELETE",

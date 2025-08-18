@@ -11,16 +11,17 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - _next/static (static files)
-     * - _next/image (image optimization files)
+     * - _next/image (image optimization files)  
      * - favicon.ico (favicon file)
      * - api/auth (auth API routes)
+     * - api/rag (RAG proxy routes)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/rag|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 
     /*
-     * Match all API routes except for auth-related ones
+     * Match all API routes except for auth-related ones and RAG proxy
      * This allows the middleware to run on API routes and check authentication
      */
-    "/api/((?!auth).*)",
+    "/api/((?!auth|rag).*)",
   ],
 };

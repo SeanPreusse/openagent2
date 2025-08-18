@@ -8,6 +8,7 @@ const NO_AUTH_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/api/auth",
+  "/api/rag",
 ];
 
 export async function updateSession(request: NextRequest) {

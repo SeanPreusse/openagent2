@@ -42,13 +42,14 @@ interface LightRAGHealthResponse {
 }
 
 function getApiUrlOrThrow(): URL {
-  if (!process.env.NEXT_PUBLIC_RAG_API_URL) {
-    throw new Error(
-      "Failed to connect to LightRAG: API URL not configured. Please set NEXT_PUBLIC_RAG_API_URL",
-    );
+  // Use the proxy API route instead of direct connection to RAG service
+  // Handle both client-side and server-side rendering
+  if (typeof window !== 'undefined') {
+    return new URL("/api/rag", window.location.origin);
+  } else {
+    // Server-side fallback - this shouldn't be called during SSR but just in case
+    return new URL("/api/rag", "http://localhost:3000");
   }
-        // console.log(`🔧 API URL from env: ${process.env.NEXT_PUBLIC_RAG_API_URL}`); // Debug: Show env var (disabled)
-  return new URL(process.env.NEXT_PUBLIC_RAG_API_URL);
 }
 
 export function useLightRAG() {
@@ -63,11 +64,16 @@ export function useLightRAG() {
   // Get health status
   const getHealth = useCallback(async (): Promise<LightRAGHealthResponse | null> => {
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/health";
+      const url = `${window.location.origin}/api/rag/health`;
+      console.log(`🔧 Making health check request to: ${url}`);
+      const response = await fetch(url);
+      console.log(`🔧 Health response status: ${response.status}`);
+      console.log(`🔧 Health response URL: ${response.url}`);
+      console.log(`🔧 Health response headers:`, Object.fromEntries(response.headers.entries()));
       
-      const response = await fetch(url.toString());
       if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`🔧 Health error response body:`, errorText.substring(0, 200));
         throw new Error(`Health check failed: ${response.statusText}`);
       }
       
@@ -83,10 +89,9 @@ export function useLightRAG() {
   const listDocuments = useCallback(async (): Promise<LightRAGDocument[]> => {
     setDocumentsLoading(true);
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/documents";
-      
-      const response = await fetch(url.toString(), {
+      const url = `${window.location.origin}/api/rag/documents`;
+      console.log(`🔧 Making documents request to: ${url}`);
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
@@ -95,7 +100,13 @@ export function useLightRAG() {
         cache: 'no-store'
       });
       
+      console.log(`🔧 Documents response status: ${response.status}`);
+      console.log(`🔧 Documents response URL: ${response.url}`);
+      console.log(`🔧 Documents response headers:`, Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`🔧 Documents error response body:`, errorText.substring(0, 200));
         console.error(`❌ Response not ok: ${response.status} ${response.statusText}`); // Debug: Error details
         throw new Error(`Failed to fetch documents: ${response.statusText}`);
       }
@@ -179,13 +190,11 @@ export function useLightRAG() {
   const uploadFile = useCallback(async (file: File): Promise<LightRAGUploadResponse | null> => {
     setUploading(true);
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/documents/upload";
-      
       const formData = new FormData();
       formData.append("file", file);
       
-      const response = await fetch(url.toString(), {
+      const url = `${window.location.origin}/api/rag/documents/upload`;
+      const response = await fetch(url, {
         method: "POST",
         body: formData,
       });
@@ -236,15 +245,13 @@ export function useLightRAG() {
   const uploadText = useCallback(async (text: string, filename?: string): Promise<LightRAGUploadResponse | null> => {
     setUploading(true);
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/documents/text";
-      
       const payload = {
         text,
         filename: filename || `text_document_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`,
       };
       
-      const response = await fetch(url.toString(), {
+      const url = `${window.location.origin}/api/rag/documents/text`;
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -330,15 +337,13 @@ export function useLightRAG() {
   ): Promise<string | null> => {
     setQuerying(true);
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/query";
-      
       const payload = {
         query: queryText,
         mode,
       };
       
-      const response = await fetch(url.toString(), {
+      const url = `${window.location.origin}/api/rag/query`;
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -364,10 +369,8 @@ export function useLightRAG() {
   // Clear all documents
   const clearDocuments = useCallback(async (): Promise<boolean> => {
     try {
-      const url = getApiUrlOrThrow();
-      url.pathname = "/documents";
-      
-      const response = await fetch(url.toString(), {
+      const url = `${window.location.origin}/api/rag/documents`;
+      const response = await fetch(url, {
         method: "DELETE",
       });
       

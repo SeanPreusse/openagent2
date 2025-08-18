@@ -167,6 +167,7 @@ class GraphConfigPydantic(BaseModel):
                 "type": "rag",
                 "default": {
                     "enabled": True,
+                    "rag_url": "http://rag:9621",
                     "workspace": "",
                     "query_mode": "hybrid",
                     "top_k": 60,

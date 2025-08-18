@@ -1,3 +1,6 @@
+# Docker Compose configuration for OpenAgent Platform
+# Environment variables are loaded from .env file in this directory
+
 services:
   # Database Services
   postgres:

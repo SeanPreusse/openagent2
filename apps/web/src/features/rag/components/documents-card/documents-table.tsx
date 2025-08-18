@@ -56,14 +56,14 @@ export function DocumentsTable({
 
   async function openDetails(doc: Document) {
     try {
-      const base = process.env.NEXT_PUBLIC_RAG_API_URL as string;
+      const base = `/api/rag`;
       const id = doc.metadata.file_id ?? doc.id;
-      const res = await fetch(`${base.replace(/\/?$/, "/")}documents/${id}`);
+      const res = await fetch(`${base}/documents/${id}`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setSelectedDocDetails(data);
       // fetch chunks
-      const cres = await fetch(`${base.replace(/\/?$/, "/")}documents/${id}/chunks`);
+      const cres = await fetch(`${base}/documents/${id}/chunks`);
       if (cres.ok) {
         const cdata = await cres.json();
         setChunks(

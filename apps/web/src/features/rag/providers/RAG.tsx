@@ -1,4 +1,4 @@
-import React, { createContext, useContext, PropsWithChildren } from "react";
+import React, { createContext, useContext, PropsWithChildren, useState, useEffect } from "react";
 import { Collection } from "@/types/collection";
 import { Document } from "@langchain/core/documents";
 
@@ -22,10 +22,11 @@ interface SimplifiedRagContextType {
 const RagContext = createContext<SimplifiedRagContextType | null>(null);
 
 export const RagProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  // Since LightRAG doesn't use collections, provide empty/mock data for backward compatibility
+  // Keep this simple and only provide mock data for backward compatibility
+  // Real RAG functionality will be handled by LightRAGInterface directly
   const mockRagState: SimplifiedRagContextType = {
-    collections: [], // Empty since LightRAG doesn't use collections
-    documents: [],
+    collections: [], // Empty since LightRAG doesn't use collections concept
+    documents: [],   // Empty - LightRAGInterface will handle real documents
     selectedCollection: undefined,
     setSelectedCollection: () => {},
     initialSearchExecuted: true, // Always true since no initialization needed

@@ -311,9 +311,9 @@ export function DocumentsCard({
     if (!selectedCollection || !ragQuery.trim()) return;
     try {
       setRagSearching(true);
-      const base = process.env.NEXT_PUBLIC_RAG_API_URL as string;
+      const base = `/api/rag`;
       const res = await fetch(
-        `${base.replace(/\/?$/, "/")}collections/${selectedCollection.uuid}/documents/search`,
+        `${base}/collections/${selectedCollection.uuid}/documents/search`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

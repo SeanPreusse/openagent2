@@ -78,21 +78,91 @@ create_directories() {
 setup_env_files() {
     print_status "Setting up environment files..."
     
+    # Main deploy environment file for docker-compose
+    if [ ! -f ".env" ]; then
+        cat > ".env" << EOF
+# OpenAgent Platform - Docker Compose Environment Variables
+
+# =============================================================================
+# Database Configuration
+# =============================================================================
+
+# PostgreSQL Configuration
+POSTGRES_DB=lightrag
+POSTGRES_USER=lightrag_user
+POSTGRES_PASSWORD=lightrag_password
+POSTGRES_HOST_PORT=5433
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=lightrag
+
+# Neo4j Configuration
+NEO4J_AUTH=neo4j/neo4j_password
+NEO4J_dbms_security_auth__enabled=false
+NEO4J_server_memory_pagecache_size=512M
+NEO4J_server_memory_heap_initial__size=512m
+NEO4J_server_memory_heap_max__size=2G
+NEO4J_PLUGINS=["apoc"]
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=neo4j_password
+
+# =============================================================================
+# RAG Service Configuration
+# =============================================================================
+
+TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+MULTIMODAL_OUTPUT_DIR=/app/data/multimodal_output
+
+# =============================================================================
+# Web Application Configuration
+# =============================================================================
+
+# Base URLs
+NEXT_PUBLIC_BASE_API_URL=http://localhost:3000
+NEXT_PUBLIC_RAG_API_URL=http://localhost:9621
+
+# Supabase Authentication (REQUIRED - Get from your Supabase project)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# LangSmith Configuration (Optional)
+NEXT_PUBLIC_USE_LANGSMITH_AUTH=false
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+
+# MCP Server Configuration (Optional)
+NEXT_PUBLIC_MCP_AUTH_REQUIRED=false
+NEXT_PUBLIC_MCP_SERVER_URL=your_mcp_server_url_here
+
+# Deployments Configuration
+NEXT_PUBLIC_DEPLOYMENTS=local
+
+# =============================================================================
+# Production Configuration (Uncomment for production deployment)
+# =============================================================================
+
+# NEXT_PUBLIC_BASE_API_URL=https://yourdomain.com
+# NEXT_PUBLIC_RAG_API_URL=https://yourdomain.com/api/rag
+EOF
+        print_warning "Created deploy .env file. Please edit .env with your Supabase credentials."
+    fi
+    
     # RAG environment file
-    if [ ! -f "openagent/apps/rag/.env" ]; then
-        if [ -f "openagent/apps/rag/env.azure-openai.example" ]; then
-            cp "openagent/apps/rag/env.azure-openai.example" "openagent/apps/rag/.env"
-            print_warning "Created RAG .env file from template. Please edit openagent/apps/rag/.env with your credentials."
+    if [ ! -f "../apps/rag/.env" ]; then
+        if [ -f "../apps/rag/env.azure-openai.example" ]; then
+            cp "../apps/rag/env.azure-openai.example" "../apps/rag/.env"
+            print_warning "Created RAG .env file from template. Please edit ../apps/rag/.env with your credentials."
         else
-            print_warning "RAG .env template not found. You may need to create openagent/apps/rag/.env manually."
+            print_warning "RAG .env template not found. You may need to create ../apps/rag/.env manually."
         fi
     fi
     
     # Web environment file
-    if [ ! -f "openagent/apps/web/.env.local" ]; then
-        cat > "openagent/apps/web/.env.local" << EOF
+    if [ ! -f "../apps/web/.env.local" ]; then
+        cat > "../apps/web/.env.local" << EOF
 # OpenAgent Platform Web Configuration
-NEXT_PUBLIC_RAG_API_URL=http://localhost:9621
+# Use Docker service names for internal communication
+NEXT_PUBLIC_RAG_API_URL=http://rag:9621
 NEXT_PUBLIC_RESEARCH_AGENT_URL=http://localhost:2025
 NEXT_PUBLIC_TOOLS_AGENT_URL=http://localhost:2026
 
@@ -105,15 +175,35 @@ EOF
     
     # Agent environment files
     for agent in "open_deep_research" "oap-langgraph-tools-agent"; do
-        if [ ! -f "openagent/apps/agents/$agent/.env" ]; then
-            cat > "openagent/apps/agents/$agent/.env" << EOF
+        if [ ! -f "../apps/agents/$agent/.env" ]; then
+            cat > "../apps/agents/$agent/.env" << EOF
 # $agent Environment Configuration
-# Add your API keys and configuration here
-# OPENAI_API_KEY=your_openai_key
-# ANTHROPIC_API_KEY=your_anthropic_key
-# LANGSMITH_API_KEY=your_langsmith_key
+
+# Supabase Authentication (Required for custom auth)
+# Get these from your Supabase project settings
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_service_role_key_here
+
+# LLM API Keys (Required - choose one or more)
+# OpenAI
+# OPENAI_API_KEY=your_openai_key_here
+
+# Azure OpenAI
+# AZURE_OPENAI_API_KEY=your_azure_openai_key_here
+# AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint_here
+# AZURE_OPENAI_API_VERSION=2024-08-01-preview
+
+# Anthropic
+# ANTHROPIC_API_KEY=your_anthropic_key_here
+
+# LangSmith (Optional - for tracing)
+# LANGSMITH_API_KEY=your_langsmith_key_here
+# LANGSMITH_TRACING=true
+
+# Other Configuration
+# Add any other environment variables your tools might need
 EOF
-            print_warning "Created $agent .env file. Please add your API keys and configuration."
+            print_warning "Created $agent .env file. Please add your Supabase credentials and API keys."
         fi
     done
     

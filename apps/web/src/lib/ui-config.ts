@@ -295,7 +295,7 @@ export function extractConfigurationsFromAgent({
             0.0,
           rag_url:
             configurable[ragConfig.label]?.rag_url ??
-            process.env.NEXT_PUBLIC_RAG_API_URL,
+            "http://rag:9621", // Use Docker service name for tools agent
         },
       }
     : undefined;
